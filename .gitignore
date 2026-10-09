@@ -1,0 +1,8 @@
+/target
+
+# Secrets never belong in git
+.env
+*.key
+
+# Catatan pribadi, tidak diunggah
+catatan.md
