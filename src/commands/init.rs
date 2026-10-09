@@ -232,17 +232,17 @@ fn migrate(ctx: &Ctx, env: Document, header: Header, owner: FileOwner) -> Result
 }
 
 fn next_steps(ctx: &Ctx, owner: Option<&Owner>) {
-    let (fill, check) = match owner {
+    let (setup, check) = match owner {
         Some(owner) => {
             let user = owner.label.split(':').next().unwrap_or(&owner.label);
             (
-                format!("sudo {}", ctx.cmd("fill")),
+                format!("sudo {}", ctx.cmd("setup")),
                 format!("sudo -u {user} {}", ctx.cmd("check")),
             )
         }
-        None => (ctx.cmd("fill"), ctx.cmd("check")),
+        None => (ctx.cmd("setup"), ctx.cmd("check")),
     };
-    output::info(&format!("Langkah berikut: {fill}, lalu {check}"));
+    output::info(&format!("Langkah berikut: {setup}, lalu {check}"));
 }
 
 #[cfg(test)]

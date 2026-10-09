@@ -1,6 +1,6 @@
 //! The `.env` file and its template: a header naming the app and its public key, then
 //! keys in order, each with the comment block directly above it (help text and
-//! `# @plain` / `# @optional` annotations).
+//! `# @plain` / `# @optional` / `# @masked` annotations).
 //!
 //! `parse` reads, `write` renders, `sync` merges a template into a `.env`. All pure.
 
@@ -58,6 +58,33 @@ pub struct Flags {
     pub plain: bool,
     /// `@optional`: may stay empty.
     pub optional: bool,
+    /// `@masked`: typed as stars even when the name does not look secret.
+    pub masked: bool,
+}
+
+/// Name parts (split on `_`) that make a key typed as stars: `REDIS_PASSWORD`, `API_KEY`.
+/// Whole parts only, so `KEYCLOAK_URL` and `PASSPORT_URL` stay visible.
+const SENSITIVE_WORDS: &[&str] = &[
+    "PASSWORD",
+    "PASSWD",
+    "PASS",
+    "PWD",
+    "SECRET",
+    "KEY",
+    "TOKEN",
+    "PRIVATE",
+    "CREDENTIAL",
+    "AUTH",
+    "SALT",
+];
+
+/// Whether the key's name alone marks it as secret.
+pub fn sensitive_name(key: &str) -> bool {
+    key.split('_').any(|part| {
+        SENSITIVE_WORDS
+            .iter()
+            .any(|word| part.eq_ignore_ascii_case(word))
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -73,7 +100,7 @@ pub enum Value {
 pub enum Status {
     Encrypted,
     Plain,
-    /// A secret key holding a plain value: must be encrypted (`fill` does it).
+    /// A secret key holding a plain value: must be encrypted (`setup` does it).
     PlainSecret,
     EmptyRequired,
     EmptyOptional,
@@ -111,6 +138,12 @@ impl Entry {
                 (!text.is_empty() && !text.starts_with('@')).then_some(text)
             })
             .collect()
+    }
+
+    /// Typed as stars (and twice) instead of visibly. Only about the screen: whether the
+    /// value is encrypted depends on `@plain` alone.
+    pub fn masked(&self) -> bool {
+        self.flags.masked || sensitive_name(&self.key)
     }
 
     pub fn status(&self) -> Status {
@@ -190,6 +223,44 @@ mod tests {
         let mut entry = Entry::new("A", Value::Empty);
         entry.comments = vec!["# Host Redis".into(), "# @optional".into(), "#".into()];
         assert_eq!(entry.help(), ["Host Redis"]);
+    }
+
+    #[test]
+    fn sensitive_names() {
+        for secret in [
+            "REDIS_PASSWORD",
+            "DB_PASS",
+            "db_pass",
+            "API_KEY",
+            "JWT_SECRET",
+            "GITHUB_TOKEN",
+            "PRIVATE_KEY_PATH",
+            "SMTP_PWD",
+            "PASSWORD",
+        ] {
+            assert!(sensitive_name(secret), "{secret}");
+        }
+        for visible in [
+            "REDIS_HOST",
+            "KEYCLOAK_URL",
+            "PASSPORT_URL",
+            "BYPASS_MODE",
+            "MONKEY",
+            "PORT",
+        ] {
+            assert!(!sensitive_name(visible), "{visible}");
+        }
+    }
+
+    #[test]
+    fn masked_flag_wins() {
+        let mut entry = Entry::new("REDIS_HOST", Value::Empty);
+        assert!(!entry.masked());
+        entry.flags.masked = true;
+        assert!(entry.masked());
+        let mut entry = Entry::new("REDIS_PASSWORD", Value::Empty);
+        entry.flags.plain = true;
+        assert!(entry.masked(), "@plain changes storage, not the screen");
     }
 
     #[test]

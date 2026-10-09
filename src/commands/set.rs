@@ -27,7 +27,7 @@ pub fn run(ctx: &Ctx, key: &str, stdin: bool, file: Option<&Path>) -> Result<i32
             format!(
                 "tambahkan {key} ke {}, lalu jalankan {}",
                 ctx.template.display(),
-                ctx.cmd("fill")
+                ctx.cmd("setup")
             ),
         )
         .into());
@@ -51,7 +51,7 @@ pub fn run(ctx: &Ctx, key: &str, stdin: bool, file: Option<&Path>) -> Result<i32
         let question = Question {
             key,
             help: entry.help(),
-            plain: flags.plain,
+            masked: entry.masked(),
             optional: flags.optional,
             default: None,
         };

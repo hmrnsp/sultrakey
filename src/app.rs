@@ -17,7 +17,7 @@ pub fn run() -> Result<i32> {
     let ctx = Ctx::new(&cli.global);
     match cli.command {
         Command::Init { app, owner } => commands::init::run(&ctx, &app, owner.as_deref()),
-        Command::Fill => commands::fill::run(&ctx),
+        Command::Setup => commands::setup::run(&ctx),
         Command::Set { key, stdin, file } => commands::set::run(&ctx, &key, stdin, file.as_deref()),
         Command::List => commands::list::run(&ctx),
         Command::Check => commands::check::run(&ctx),

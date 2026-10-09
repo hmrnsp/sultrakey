@@ -107,13 +107,13 @@ impl Env {
         text(&output.stderr)
     }
 
-    /// Template + `init demo` + `fill` with the test secret.
+    /// Template + `init demo` + `setup` with the test secret.
     pub fn ready(&self) {
-        self.write(".env.template", TEMPLATE);
+        self.write(".env.example", TEMPLATE);
         self.write("cert.pem", "-----BEGIN-----\nAAA\n-----END-----\n");
         self.ok(&["init", "demo"], "");
         self.ok(
-            &["fill"],
+            &["setup"],
             &format!("REDIS_HOST={SECRET}\nSSL_CERT=@cert.pem\n"),
         );
     }

@@ -1,4 +1,4 @@
-//! Reads `.env` and `.env.template` files.
+//! Reads `.env` and `.env.example` files.
 //!
 //! Accepted, as common dotenv parsers do: CRLF line endings, an `export ` prefix, single
 //! quotes (literal), double quotes (escapes `\\ \" \n \r \t \$`, may span lines), and a
@@ -164,9 +164,9 @@ fn strip_export(line: &str) -> &str {
     }
 }
 
-/// The annotations of a comment line: `# @plain @optional`. A comment whose text does not
-/// start with `@` has none. Unknown names are refused, so a typo cannot silently turn a
-/// secret into a plain value or a required key into an optional one.
+/// The annotations of a comment line: `# @plain @optional @masked`. A comment whose text
+/// does not start with `@` has none. Unknown names are refused, so a typo cannot silently
+/// turn a secret into a plain value or a required key into an optional one.
 fn annotations(comment: &str) -> Result<Flags, String> {
     let text = comment.trim_start_matches('#').trim();
     let mut flags = Flags::default();
@@ -177,9 +177,10 @@ fn annotations(comment: &str) -> Result<Flags, String> {
         match word {
             "@plain" => flags.plain = true,
             "@optional" => flags.optional = true,
+            "@masked" => flags.masked = true,
             other => {
                 return Err(format!(
-                    "anotasi '{other}' tidak dikenal; yang dikenal hanya @plain dan @optional"
+                    "anotasi '{other}' tidak dikenal; yang dikenal hanya @plain, @optional, dan @masked"
                 ));
             }
         }
@@ -193,6 +194,7 @@ fn flags_of(comments: &[String]) -> Flags {
         Flags {
             plain: acc.plain || flags.plain,
             optional: acc.optional || flags.optional,
+            masked: acc.masked || flags.masked,
         }
     })
 }
@@ -314,7 +316,8 @@ mod tests {
             port.flags,
             Flags {
                 plain: true,
-                optional: false
+                optional: false,
+                masked: false
             }
         );
         assert_eq!(port.help(), ["Port aplikasi"]);
@@ -416,25 +419,44 @@ mod tests {
 
     #[test]
     fn annotations_on_one_line_or_many() {
-        let doc =
-            parse("# @plain @optional\nA=\n#   @optional\n# @plain\nB=\n# email @ kantor\nC=\n")
-                .unwrap();
+        let doc = parse(
+            "# @plain @optional\nA=\n#   @optional\n# @plain\nB=\n# email @ kantor\nC=\n\
+             # @masked\nD=\n# @plain @masked\nE=\n",
+        )
+        .unwrap();
         let flags = |k| doc.get(k).unwrap().flags;
         assert_eq!(
             flags("A"),
             Flags {
                 plain: true,
-                optional: true
+                optional: true,
+                masked: false
             }
         );
         assert_eq!(
             flags("B"),
             Flags {
                 plain: true,
-                optional: true
+                optional: true,
+                masked: false
             }
         );
         assert_eq!(flags("C"), Flags::default());
+        assert_eq!(
+            flags("D"),
+            Flags {
+                masked: true,
+                ..Flags::default()
+            }
+        );
+        assert_eq!(
+            flags("E"),
+            Flags {
+                plain: true,
+                optional: false,
+                masked: true
+            }
+        );
     }
 
     #[test]

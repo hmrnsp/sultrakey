@@ -28,14 +28,14 @@ useradd -r -m lakupandai
 mkdir -p /opt/lakupandai
 chmod 755 /opt/lakupandai
 cd /opt/lakupandai
-printf '# Port aplikasi\n# @plain\nPORT=8899\n# Host Redis\nREDIS_HOST=\n# @optional\nREDIS_PASSWORD=\n' > .env.template
+printf '# Port aplikasi\n# @plain\nPORT=8899\n# Host Redis\nREDIS_HOST=\n# @optional\nREDIS_PASSWORD=\n' > .env.example
 
 expect_exit 64 sultrakey init lakupandai
 sultrakey init lakupandai --owner lakupandai
 [ "$(stat -c '%a %U' /etc/sultrakey/lakupandai.key)" = "400 lakupandai" ]
 [ "$(stat -c '%a %U' .env)" = "600 lakupandai" ]
 
-printf 'REDIS_HOST=10.10.1.20\n' | sultrakey fill
+printf 'REDIS_HOST=10.10.1.20\n' | sultrakey setup
 [ "$(stat -c '%a %U' .env)" = "600 lakupandai" ]
 grep -q '^REDIS_HOST=enc:' .env
 runuser -u lakupandai -- sultrakey check --env /opt/lakupandai/.env
@@ -57,7 +57,7 @@ expect_exit 78 runuser -u lakupandai -- sultrakey run --env /opt/lakupandai/.env
 # A plain .env from before sultrakey is taken over and encrypted.
 mkdir -p /opt/old && cd /opt/old
 printf 'PORT=1\nDB_PASSWORD=rahasia\n' > .env
-printf '# @plain\nPORT=\nDB_PASSWORD=\n' > .env.template
+printf '# @plain\nPORT=\nDB_PASSWORD=\n' > .env.example
 sultrakey init old --owner lakupandai
 grep -q '^DB_PASSWORD=enc:' .env
 if grep -q rahasia .env; then

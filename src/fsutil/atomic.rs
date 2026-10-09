@@ -1,6 +1,6 @@
 //! Crash-safe file replacement: readers see either the old or the new file, never a
 //! half-written one. Adapted from lopi `src/atomic.rs`, plus file mode and owner on Unix
-//! (a `.env` rewritten by `sudo sultrakey fill` must stay readable by the app user).
+//! (a `.env` rewritten by `sudo sultrakey setup` must stay readable by the app user).
 
 use std::fs;
 use std::io::{self, Write};

@@ -137,7 +137,8 @@ mod tests {
             doc.get("PORT").unwrap().flags,
             Flags {
                 plain: true,
-                optional: false
+                optional: false,
+                masked: false
             }
         );
     }

@@ -13,7 +13,7 @@ use anyhow::{Context, Result};
 
 use crate::error::Fail;
 
-/// How long `fill`/`set` wait for another one to finish saving.
+/// How long `setup`/`set` wait for another one to finish saving.
 pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(5);
 const RETRY_EVERY: Duration = Duration::from_millis(50);
 
@@ -58,7 +58,7 @@ impl FileLock {
     }
 }
 
-/// A lock file created earlier by root (`sudo sultrakey fill`) may not be writable for the
+/// A lock file created earlier by root (`sudo sultrakey setup`) may not be writable for the
 /// app user; a read-only handle locks just as well.
 fn open(path: &Path) -> io::Result<File> {
     match OpenOptions::new()

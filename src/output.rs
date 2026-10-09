@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn report_uses_the_fail_code() {
-        let err = anyhow::Error::new(Fail::config("A kosong.", "sultrakey fill"));
+        let err = anyhow::Error::new(Fail::config("A kosong.", "sultrakey setup"));
         assert_eq!(report(&err), 78);
         assert_eq!(report(&anyhow::anyhow!("boom")), 1);
     }

@@ -37,10 +37,11 @@ jalankan `./sultrakey-<target> install` (`sudo` di server). Dari source: `cargo 
 
 ## Alur singkat
 
-1. Repo aplikasi berisi `.env.template` (semua key, value kosong atau default yang bukan rahasia).
-   `.env` asli tidak pernah masuk git (tambahkan ke `.gitignore`).
+1. Repo aplikasi berisi `.env.example` (semua key, value kosong atau default yang bukan rahasia).
+   `.env` asli tidak pernah masuk git (tambahkan `.env` ke `.gitignore`; jangan pola `.env*`, karena
+   `.env.example` ikut tidak masuk git).
 2. `sultrakey init <app>` membuat keypair dan `.env` dari template.
-3. `sultrakey fill` menanyakan key yang masih kosong, lalu menyimpannya terenkripsi.
+3. `sultrakey setup` menanyakan key yang masih kosong, lalu menyimpannya terenkripsi.
 4. `sultrakey check` memastikan semua key terisi dan bisa dibuka.
 5. `sultrakey run -- <perintah>` membuka value, mengisinya ke environment, lalu menjalankan aplikasi.
 
@@ -49,7 +50,7 @@ Di laptop Windows:
 ```powershell
 cd C:\proyek\api
 sultrakey init api
-sultrakey fill
+sultrakey setup
 sultrakey run -- npm run dev
 ```
 
@@ -57,7 +58,7 @@ Di Linux/macOS, membuat kunci butuh sudo, termasuk di laptop. Kunci selalu disim
 
 ```sh
 sudo sultrakey init api --owner $USER
-sultrakey fill
+sultrakey setup
 sultrakey run -- npm run dev
 ```
 
@@ -76,15 +77,67 @@ REDIS_PASSWORD=
 SSL_CERT=
 ```
 
-- Komentar tepat di atas key menjadi teks bantuan saat `fill`.
-- `# @plain`: value tidak dienkripsi (bukan rahasia). `# @optional`: boleh kosong.
-  Keduanya boleh ditulis dalam satu baris (`# @plain @optional`). Anotasi lain ditolak, supaya salah
-  ketik tidak lolos.
-- Value di template menjadi default yang ditawarkan saat `fill` (Enter = pakai default).
-- Value yang panjangnya lebih dari satu baris diisi dari file: saat `fill` ketik `@/lokasi/file`,
+- Komentar tepat di atas key menjadi teks bantuan saat `setup`.
+- Value di template menjadi nilai bawaan saat `setup`:
+  - Key biasa: nilai bawaan sudah tertulis di baris input. Enter = pakai, Backspace = ganti. Hapus semua
+    lalu Enter: key `@optional` jadi kosong, key wajib ditanya ulang. Tanpa terminal, key biasa yang
+    kosong dan tidak dikirim langsung diisi nilai bawaan.
+  - Key rahasia: nilai di template **diabaikan** dan wajib diketik, juga tanpa terminal. Jadi password
+    contoh seperti `DB_PASSWORD=secret` tidak pernah tersimpan.
+  - **Kosongkan value contoh di key biasa** (misalnya `SMTP_HOST=smtp.example.com`). Kalau tidak, value
+    contoh itu tersimpan sebagai value sungguhan dan `check` tetap lolos.
+- Value yang panjangnya lebih dari satu baris diisi dari file: saat `setup` ketik `@/lokasi/file`,
   atau pakai `sultrakey set KEY --file <lokasi>`. Ketik `@@` untuk value yang memang diawali `@`.
 - Urutan dan komentar template ikut disalin ke `.env`, bersama anotasinya. Karena itu `check` dan `run`
   tidak butuh template.
+
+### Anotasi (tag)
+
+Anotasi ditulis sebagai komentar di atas key, di blok komentar yang menempel ke key itu (tanpa baris
+kosong di antaranya). Tanpa anotasi, key dianggap **rahasia dan wajib**: dienkripsi, dan harus terisi
+sebelum `run`.
+
+| Anotasi | Fungsi | Tanpa anotasi ini |
+| --- | --- | --- |
+| `# @plain` | Value disimpan **polos**, tidak dienkripsi. Untuk value yang bukan rahasia, misalnya port atau level log. | Value dienkripsi (`enc:...`). Value polos yang diketik manual di key ini membuat `check` dan `run` gagal sampai `setup` mengenkripsinya. |
+| `# @optional` | Key **boleh kosong**. `check` dan `run` tetap jalan, dan aplikasi menerima variabel itu dengan isi kosong. Saat `setup`, hapus semua isi baris lalu Enter = biarkan kosong. | Key wajib diisi. `check` dan `run` gagal (exit 78) selama masih kosong. |
+| `# @masked` | Ketikan tampil sebagai `*` dan diketik **dua kali** saat `setup` dan `set`. Nilai bawaan dari template diabaikan. Untuk rahasia yang namanya tidak terlihat rahasia, misalnya `DATABASE_URL=postgres://user:password@host/db`. | Tampilan mengikuti nama key (lihat di bawah). |
+
+Aturan penulisan:
+
+- Beberapa anotasi boleh dalam satu baris (`# @plain @optional`) atau di baris terpisah.
+- Baris komentar yang diawali `@` hanya boleh berisi anotasi. Anotasi yang tidak dikenal (misalnya salah
+  ketik `# @optinal`) ditolak beserta nomor barisnya, supaya rahasia tidak diam-diam tersimpan polos.
+- Komentar yang tidak diawali `@` adalah teks bantuan biasa, walaupun berisi `@` di tengahnya
+  (`# email @ kantor`).
+
+Tampilan ketikan tanpa `@masked`: key tetap tampil `*` bila salah satu bagian namanya (dipisah `_`,
+huruf besar atau kecil sama saja) adalah `PASSWORD`, `PASSWD`, `PASS`, `PWD`, `SECRET`, `KEY`, `TOKEN`,
+`PRIVATE`, `CREDENTIAL`, `AUTH`, atau `SALT`. Contoh: `REDIS_PASSWORD` dan `API_KEY` tampil `*`;
+`KEYCLOAK_URL` dan `PASSPORT_URL` terlihat. Tampilan tidak memengaruhi enkripsi: yang menentukan
+enkripsi hanya `@plain`.
+
+Contoh kombinasi:
+
+| Template | Disimpan | Saat diketik | Boleh kosong |
+| --- | --- | --- | --- |
+| `REDIS_HOST=` | terenkripsi | terlihat, sekali | tidak |
+| `REDIS_PASSWORD=` | terenkripsi | `*`, dua kali | tidak |
+| `# @optional`<br>`REDIS_PASSWORD=` | terenkripsi | `*`, dua kali | ya |
+| `# @plain`<br>`PORT=8899` | polos | terlihat, `8899` sudah terisi | tidak |
+| `# @plain @optional`<br>`LOG_LEVEL=info` | polos | terlihat, `info` sudah terisi | ya |
+| `# @masked`<br>`DATABASE_URL=` | terenkripsi | `*`, dua kali | tidak |
+
+### Penanda lain
+
+| Penanda | Di mana | Fungsi |
+| --- | --- | --- |
+| `SULTRAKEY_APP=<app>` | Baris awal `.env` (dibuat `init`) | Nama aplikasi; menentukan file kunci `/etc/sultrakey/<app>.key` (Windows: `%APPDATA%\sultrakey\<app>.key`). Tidak boleh ada di template. |
+| `SULTRAKEY_PUBLIC_KEY=age1...` | Baris awal `.env` (dibuat `init`) | Public key untuk mengenkripsi. Harus pasangan file kunci; kalau tidak, `check` gagal. |
+| `SULTRAKEY_*` | Nama key | Awalan milik sultrakey. Selain dua baris di atas, key berawalan ini ditolak di `.env` dan template. Variabel environment berawalan ini juga tidak pernah diteruskan ke aplikasi oleh `run`. |
+| `enc:...` | Value di `.env` | Value terenkripsi. Jangan diedit manual; ganti lewat `sultrakey set KEY`. |
+| `@/lokasi/file` | Jawaban saat `setup` (atau `KEY=@file` lewat stdin) | Isi value diambil dari file, untuk value banyak baris seperti sertifikat. Hapus file itu setelahnya. |
+| `@@...` | Jawaban saat `setup` | Value yang memang diawali `@`. `@@abc` disimpan sebagai `@abc`. |
 
 Hasil `.env`:
 
@@ -104,14 +157,14 @@ REDIS_HOST=enc:YWdlLWVuY3J5cHRpb24...
 | Perintah | Fungsi |
 | --- | --- |
 | `init <app> [--owner user[:group]]` | Buat kunci bila belum ada (tidak pernah menimpa). Buat `.env` dari template, atau ambil alih `.env` polos lama dengan mengenkripsi value-nya. |
-| `fill` | Samakan `.env` dengan template, enkripsi value polos di key rahasia, lalu tanyakan semua key kosong. Tanpa terminal: baca baris `KEY=value` dari stdin. |
+| `setup` | Samakan `.env` dengan template, enkripsi value polos di key rahasia, lalu tanyakan semua key kosong (key rahasia tampil `*`). Tanpa terminal: baca baris `KEY=value` dari stdin. |
 | `set <KEY> [--stdin \| --file F]` | Ganti satu value. Value tidak pernah diambil dari argumen. |
 | `list` | Nama key dan statusnya. Value tidak pernah ditampilkan. |
 | `check` | Semua key wajib terisi, semua `enc:` bisa dibuka, kunci cocok, izin file kunci aman. |
 | `run [--env F] -- <cmd> [args]` | `check`, lalu jalankan aplikasi dengan value di environment. |
 | `install` / `update [--check] [-y]` / `uninstall [-y]` | Pasang, perbarui, atau hapus binary. |
 
-Opsi global: `--env` (bawaan `./.env`), `--template` (bawaan `./.env.template`), `--key-file`.
+Opsi global: `--env` (bawaan `./.env`), `--template` (bawaan `./.env.example`), `--key-file`.
 
 Urutan mencari kunci:
 

@@ -49,18 +49,18 @@ fn set_refuses_unknown_keys_and_empty_required_values() {
 }
 
 #[test]
-fn fill_from_stdin_refuses_unknown_keys_and_binary_files() {
+fn setup_from_stdin_refuses_unknown_keys_and_binary_files() {
     let env = Env::new();
     env.ready();
-    env.write(".env.template", &format!("{}EXTRA=\n", common::TEMPLATE));
-    let stderr = env.fails(&["fill"], "NOT_IN_TEMPLATE=1\n", 64);
+    env.write(".env.example", &format!("{}EXTRA=\n", common::TEMPLATE));
+    let stderr = env.fails(&["setup"], "NOT_IN_TEMPLATE=1\n", 64);
     assert!(
         stderr.contains("NOT_IN_TEMPLATE tidak ada di template"),
         "{stderr}"
     );
     std::fs::write(env.path("bin.dat"), b"\x00\x01\xff").unwrap();
-    let stderr = env.fails(&["fill"], "EXTRA=@bin.dat\n", 64);
+    let stderr = env.fails(&["setup"], "EXTRA=@bin.dat\n", 64);
     assert!(stderr.contains("bukan teks"), "{stderr}");
-    let stderr = env.fails(&["fill"], "garbage\n", 64);
+    let stderr = env.fails(&["setup"], "garbage\n", 64);
     assert!(stderr.contains("bukan KEY=value"), "{stderr}");
 }

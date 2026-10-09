@@ -37,19 +37,26 @@ Satu binary ini jalan di Rocky Linux 8/9, Ubuntu, dan CentOS 7.
 ## 2. Siapkan aplikasi baru
 
 Contoh: aplikasi `lakupandai` di `/opt/lakupandai`, dijalankan oleh user Linux `lakupandai`.
-Folder aplikasi harus berisi `.env.template` (dibawa developer lewat git).
+Folder aplikasi harus berisi `.env.example` (dibawa developer lewat git).
+Value yang terisi di `.env.example` dipakai sebagai nilai bawaan untuk key biasa. Bila isinya contoh
+palsu (misalnya `SMTP_HOST=smtp.example.com`), minta developer mengosongkannya dulu. Value di key rahasia
+selalu diabaikan.
 
 ```sh
 cd /opt/lakupandai
 sudo sultrakey init lakupandai --owner lakupandai    # buat kunci + .env
-sudo sultrakey fill                                  # isi semua yang masih kosong
+sudo sultrakey setup                                  # isi semua yang masih kosong
 sudo -u lakupandai sultrakey check                   # pastikan semuanya beres
 ```
 
-Saat `fill`:
+Saat `setup`:
 
-- Password diketik tanpa terlihat di layar, dan diketik **dua kali**.
-- Tekan Enter untuk memakai nilai bawaan yang ditampilkan, atau untuk mengosongkan key yang boleh kosong.
+- Key rahasia (nama mengandung PASSWORD, KEY, TOKEN, dll., atau bertanda `@masked`) tampil sebagai `*`
+  dan diketik **dua kali**. Key lain terlihat saat diketik.
+- Untuk key biasa, nilai bawaan sudah tertulis di baris input. Tekan Enter untuk memakainya, atau
+  hapus dengan Backspace lalu ketik nilai baru. Hapus semua lalu Enter untuk mengosongkan key yang boleh
+  kosong.
+- Key rahasia tidak punya nilai bawaan: selalu diketik.
 - Isi yang panjangnya lebih dari satu baris (sertifikat, file kunci) diisi dari file: ketik `@/tmp/cert.pem`.
   Setelah selesai, hapus file itu.
 - Tekan Ctrl+C untuk berhenti. Tidak ada yang tersimpan sampai semua pertanyaan dijawab.
@@ -176,12 +183,12 @@ CentOS 6 hanya didukung lewat Docker.
 
 | Pesan | Artinya | Yang dilakukan |
 | --- | --- | --- |
-| `✗ X belum diisi.` | Key wajib masih kosong. | `sudo sultrakey fill` |
-| `✗ X tersimpan polos ...` | Ada password yang diketik manual tanpa enkripsi. | `sudo sultrakey fill` (otomatis dienkripsi) |
+| `✗ X belum diisi.` | Key wajib masih kosong. | `sudo sultrakey setup` |
+| `✗ X tersimpan polos ...` | Ada password yang diketik manual tanpa enkripsi. | `sudo sultrakey setup` (otomatis dienkripsi) |
 | `✗ Tidak punya izin membaca file kunci ...` | Dijalankan oleh user yang salah. | Jalankan sebagai user aplikasi: `sudo -u <user> sultrakey check` |
 | `✗ Izin file kunci ... terlalu terbuka` | File kunci bisa dibaca user lain. | `sudo chmod 400 /etc/sultrakey/<app>.key` |
 | `✗ File kunci ... bukan pasangan .env ...` | Kunci dan `.env` berasal dari aplikasi/server berbeda. | Pakai kunci yang benar, atau pulihkan dari backup. |
-| `✗ File kunci ... tidak ditemukan.` | Kunci hilang atau salah lokasi. | Pulihkan dari backup. Bila tidak ada backup: hapus `.env`, jalankan `init` dan `fill` ulang. |
+| `✗ File kunci ... tidak ditemukan.` | Kunci hilang atau salah lokasi. | Pulihkan dari backup. Bila tidak ada backup: hapus `.env`, jalankan `init` dan `setup` ulang. |
 | `✗ X tidak bisa dibuka ...` | Isi satu key rusak. | `sudo sultrakey set X` |
 | `✗ Perintah 'node' tidak ditemukan.` | Perintah aplikasi salah. | Tulis lokasi lengkapnya, contoh `/usr/bin/node`. |
 

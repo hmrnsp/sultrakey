@@ -2,12 +2,12 @@
 //! the key, and the exact command to suggest in `Solusi:` lines.
 
 pub mod check;
-pub mod fill;
 pub mod init;
 pub mod install;
 pub mod list;
 pub mod run;
 pub mod set;
+pub mod setup;
 pub mod uninstall;
 pub mod update;
 
@@ -50,7 +50,7 @@ impl Ctx {
         if self.env != Path::new(".env") {
             out.push_str(&format!(" --env {}", shell_path(&self.env)));
         }
-        if self.template != Path::new(".env.template") {
+        if self.template != Path::new(".env.example") {
             out.push_str(&format!(" --template {}", shell_path(&self.template)));
         }
         if let Some(key) = &self.key_file {
@@ -198,7 +198,7 @@ pub fn key_location(ctx: &Ctx, app: &str) -> Result<Located, Fail> {
 pub fn missing_key_hint(ctx: &Ctx, app: &str, path: &Path) -> String {
     format!(
         "pulihkan file kunci dari backup ke {}; bila tidak ada backup: hapus {}, lalu jalankan {} \
-         dan sultrakey fill (semua value diisi ulang)",
+         dan sultrakey setup (semua value diisi ulang)",
         path.display(),
         ctx.env.display(),
         ctx.init_cmd(app)
@@ -245,7 +245,7 @@ pub fn write_env(ctx: &Ctx, doc: &Document, owner: FileOwner) -> Result<()> {
                 if cfg!(windows) {
                     "tutup program lain yang membuka file itu, lalu ulangi".to_string()
                 } else {
-                    format!("sudo {}", ctx.cmd("fill"))
+                    format!("sudo {}", ctx.cmd("setup"))
                 },
             ),
             _ => Fail::other(format!("{} tidak bisa ditulis: {err}.", ctx.env.display())),
@@ -269,7 +269,7 @@ pub fn require_terminal(instead: &str) -> Result<()> {
     .into())
 }
 
-/// Reads all of stdin (for `--stdin` and non-terminal `fill`).
+/// Reads all of stdin (for `--stdin` and non-terminal `setup`).
 pub fn read_stdin() -> Result<zeroize::Zeroizing<String>> {
     let mut text = zeroize::Zeroizing::new(String::new());
     io::Read::read_to_string(&mut io::stdin(), &mut text).context("stdin tidak bisa dibaca")?;
@@ -291,14 +291,14 @@ mod tests {
     #[test]
     fn suggested_commands_keep_the_options() {
         assert_eq!(
-            ctx(".env", ".env.template", None).cmd("fill"),
-            "sultrakey fill"
+            ctx(".env", ".env.example", None).cmd("setup"),
+            "sultrakey setup"
         );
         assert_eq!(
-            ctx("/opt/a b/.env", "t.env", Some("/k.key")).cmd("fill"),
-            "sultrakey fill --env \"/opt/a b/.env\" --template t.env --key-file /k.key"
+            ctx("/opt/a b/.env", "t.env", Some("/k.key")).cmd("setup"),
+            "sultrakey setup --env \"/opt/a b/.env\" --template t.env --key-file /k.key"
         );
-        let init = ctx(".env", ".env.template", None).init_cmd("demo");
+        let init = ctx(".env", ".env.example", None).init_cmd("demo");
         if cfg!(windows) {
             assert_eq!(init, "sultrakey init demo");
         } else {

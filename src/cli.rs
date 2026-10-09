@@ -10,7 +10,7 @@ use clap::{Args, Parser, Subcommand};
     about = "File .env terenkripsi, lalu menjalankan aplikasi dengan value yang sudah dibuka",
     after_help = "Alur di server:\n  \
         sudo sultrakey init <app> --owner <user-aplikasi>\n  \
-        sultrakey fill\n  \
+        sultrakey setup\n  \
         sultrakey check\n  \
         sultrakey run -- <perintah aplikasi>"
 )]
@@ -32,7 +32,7 @@ pub struct Global {
         long,
         global = true,
         value_name = "FILE",
-        default_value = ".env.template"
+        default_value = ".env.example"
     )]
     pub template: PathBuf,
 
@@ -53,9 +53,9 @@ pub enum Command {
     },
 
     /// Samakan .env dengan template, lalu tanyakan key yang masih kosong
-    Fill,
+    Setup,
 
-    /// Ganti value satu key (dari prompt tersembunyi, --stdin, atau --file)
+    /// Ganti value satu key (dari prompt, --stdin, atau --file)
     Set {
         /// Nama key, persis seperti di .env
         key: String,

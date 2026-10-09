@@ -1,4 +1,4 @@
-//! init → fill → check → run, and every way they refuse.
+//! init → setup → check → run, and every way they refuse.
 
 mod common;
 
@@ -7,9 +7,9 @@ use std::fs;
 use common::{Env, SECRET, TEMPLATE, exit_with, print_env, text};
 
 #[test]
-fn init_fill_check_run() {
+fn init_setup_check_run() {
     let env = Env::new();
-    env.write(".env.template", TEMPLATE);
+    env.write(".env.example", TEMPLATE);
 
     let out = env.ok(&["init", "demo"], "");
     assert!(out.contains("Kunci baru dibuat"), "{out}");
@@ -23,7 +23,7 @@ fn init_fill_check_run() {
 
     env.write("cert.pem", "-----BEGIN-----\nAAA\n-----END-----\n");
     let out = env.ok(
-        &["fill"],
+        &["setup"],
         &format!("REDIS_HOST={SECRET}\nSSL_CERT=@cert.pem\n"),
     );
     assert!(out.contains("Terisi: REDIS_HOST, SSL_CERT, PORT"), "{out}");
@@ -58,15 +58,15 @@ fn init_fill_check_run() {
 }
 
 #[test]
-fn second_fill_keeps_values_and_adds_new_template_keys() {
+fn second_setup_keeps_values_and_adds_new_template_keys() {
     let env = Env::new();
     env.ready();
     let before = env.read(".env");
-    env.ok(&["fill"], "");
+    env.ok(&["setup"], "");
     assert_eq!(env.read(".env"), before, "nothing to do, nothing changed");
 
-    env.write(".env.template", &format!("{TEMPLATE}# Baru\nNEW_KEY=\n"));
-    let err_out = env.run(&["fill"], "REDIS_HOST=other\n");
+    env.write(".env.example", &format!("{TEMPLATE}# Baru\nNEW_KEY=\n"));
+    let err_out = env.run(&["setup"], "REDIS_HOST=other\n");
     assert_eq!(err_out.status.code(), Some(0));
     let stderr = text(&err_out.stderr);
     assert!(
@@ -76,13 +76,30 @@ fn second_fill_keeps_values_and_adds_new_template_keys() {
     assert!(stderr.contains("Masih kosong: NEW_KEY"), "{stderr}");
     let stderr = env.fails(&["check"], "", 78);
     assert!(stderr.contains("NEW_KEY belum diisi."), "{stderr}");
-    assert!(stderr.contains("Solusi: sultrakey fill"), "{stderr}");
+    assert!(stderr.contains("Solusi: sultrakey setup"), "{stderr}");
+}
+
+#[test]
+fn secret_keys_never_take_example_values() {
+    let env = Env::new();
+    env.write(".env.example", "# @plain\nPORT=8899\nDB_PASSWORD=secret\n");
+    env.ok(&["init", "demo"], "");
+    let output = env.run(&["setup"], "");
+    assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
+    let stderr = text(&output.stderr);
+    assert!(stderr.contains("Masih kosong: DB_PASSWORD"), "{stderr}");
+
+    let dotenv = env.read(".env");
+    assert!(dotenv.contains("\nPORT=8899\n"), "{dotenv}");
+    assert!(dotenv.contains("\nDB_PASSWORD=\n"), "{dotenv}");
+    let stderr = env.fails(&["check"], "", 78);
+    assert!(stderr.contains("DB_PASSWORD belum diisi."), "{stderr}");
 }
 
 #[test]
 fn run_refuses_and_passes_on_exit_codes() {
     let env = Env::new();
-    env.write(".env.template", "REDIS_HOST=\n");
+    env.write(".env.example", "REDIS_HOST=\n");
     env.ok(&["init", "demo"], "");
 
     // Empty required key: nothing starts, exit 78.
@@ -92,7 +109,7 @@ fn run_refuses_and_passes_on_exit_codes() {
     let stderr = env.fails(&args, "", 78);
     assert!(stderr.contains("✗ REDIS_HOST belum diisi."), "{stderr}");
 
-    env.ok(&["fill"], &format!("REDIS_HOST={SECRET}\n"));
+    env.ok(&["setup"], &format!("REDIS_HOST={SECRET}\n"));
     let mut args = vec!["run".to_string(), "--".to_string()];
     args.extend(exit_with(3));
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
@@ -136,6 +153,7 @@ fn run_hides_sultrakey_variables_and_warns_by_name() {
 fn usage_errors_exit_64() {
     let env = Env::new();
     env.fails(&["fil"], "", 64);
+    env.fails(&["fill"], "", 64);
     env.fails(&["run"], "", 64);
     env.fails(&["init", "Bad_Name"], "", 64);
     env.fails(&["set", "A", "--stdin", "--file", "x"], "", 64);
@@ -153,12 +171,12 @@ fn missing_files_are_configuration_problems() {
     assert!(stderr.contains(".env tidak ditemukan"), "{stderr}");
     let stderr = env.fails(&["init", "demo"], "", 78);
     assert!(
-        stderr.contains("Template .env.template tidak ditemukan"),
+        stderr.contains("Template .env.example tidak ditemukan"),
         "{stderr}"
     );
 
     env.write(".env", "A=1\n");
-    let stderr = env.fails(&["fill"], "", 78);
+    let stderr = env.fails(&["setup"], "", 78);
     assert!(stderr.contains("belum dikelola sultrakey"), "{stderr}");
 }
 
@@ -216,7 +234,7 @@ fn wrong_damaged_or_lost_keys() {
 }
 
 #[test]
-fn plain_secret_values_block_run_until_fill_encrypts_them() {
+fn plain_secret_values_block_run_until_setup_encrypts_them() {
     let env = Env::new();
     env.ready();
     let dotenv = env.read(".env");
@@ -233,7 +251,7 @@ fn plain_secret_values_block_run_until_fill_encrypts_them() {
     assert!(stderr.contains("REDIS_HOST tersimpan polos"), "{stderr}");
     assert!(env.ok(&["list"], "").contains("polos — harus dienkripsi"));
 
-    let out = env.ok(&["fill"], "");
+    let out = env.ok(&["setup"], "");
     assert!(out.contains("Value polos dienkripsi: REDIS_HOST"), "{out}");
     assert!(!env.read(".env").contains("typed-by-hand"));
     env.ok(&["check"], "");
@@ -242,16 +260,20 @@ fn plain_secret_values_block_run_until_fill_encrypts_them() {
 #[test]
 fn unknown_annotations_are_refused_with_the_line() {
     let env = Env::new();
-    env.write(".env.template", "# @optinal\nA=\n");
+    env.write(".env.example", "# @optinal\nA=\n");
     let stderr = env.fails(&["init", "demo"], "", 78);
     assert!(stderr.contains("baris 1"), "{stderr}");
     assert!(stderr.contains("@optinal"), "{stderr}");
+
+    env.write(".env.example", "# @masked\nDATABASE_URL=\n");
+    env.ok(&["init", "demo"], "");
+    assert!(env.read(".env").contains("# @masked\nDATABASE_URL=\n"));
 }
 
 #[test]
 fn init_migrates_a_plain_env() {
     let env = Env::new();
-    env.write(".env.template", TEMPLATE);
+    env.write(".env.example", TEMPLATE);
     env.write(
         ".env",
         &format!("PORT=3000\r\nREDIS_HOST={SECRET}\r\nLEGACY_TOKEN=abc def\r\n"),

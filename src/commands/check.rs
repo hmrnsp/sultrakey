@@ -54,11 +54,13 @@ pub fn inspect(ctx: &Ctx) -> Result<Opened, Fail> {
         let key = &entry.key;
         match &entry.value {
             Value::Empty if entry.flags.optional => values.push((key.clone(), Secret::default())),
-            Value::Empty => issues.push(Issue::new(format!("{key} belum diisi."), ctx.cmd("fill"))),
+            Value::Empty => {
+                issues.push(Issue::new(format!("{key} belum diisi."), ctx.cmd("setup")))
+            }
             Value::Plain(value) if entry.flags.plain => values.push((key.clone(), value.clone())),
             Value::Plain(_) => issues.push(Issue::new(
                 format!("{key} tersimpan polos (tidak terenkripsi), padahal bukan @plain."),
-                format!("{} (value itu akan dienkripsi)", ctx.cmd("fill")),
+                format!("{} (value itu akan dienkripsi)", ctx.cmd("setup")),
             )),
             Value::Encrypted(b64) => {
                 let Some(identity) = &identity else { continue };
@@ -117,7 +119,7 @@ pub fn run(ctx: &Ctx) -> Result<i32> {
                 "Template punya key yang belum ada di .env: {}",
                 new.join(", ")
             ));
-            output::info(&format!("Solusi: {}", ctx.cmd("fill")));
+            output::info(&format!("Solusi: {}", ctx.cmd("setup")));
         }
     }
     output::ok(&format!(
