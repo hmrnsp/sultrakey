@@ -51,7 +51,7 @@ sudo -u lakupandai sultrakey check                   # pastikan semuanya beres
 
 Saat `setup`:
 
-- Key rahasia (nama mengandung PASSWORD, KEY, TOKEN, dll., atau bertanda `@masked`) tampil sebagai `*`
+- Key rahasia (nama mengandung PASSWORD, SECRET, TOKEN, dll., atau bertanda `@masked`) tampil sebagai `*`
   dan diketik **dua kali**. Key lain terlihat saat diketik.
 - Untuk key biasa, nilai bawaan sudah tertulis di baris input. Tekan Enter untuk memakainya, atau
   hapus dengan Backspace lalu ketik nilai baru. Hapus semua lalu Enter untuk mengosongkan key yang boleh
@@ -59,7 +59,10 @@ Saat `setup`:
 - Key rahasia tidak punya nilai bawaan: selalu diketik.
 - Isi yang panjangnya lebih dari satu baris (sertifikat, file kunci) diisi dari file: ketik `@/tmp/cert.pem`.
   Setelah selesai, hapus file itu.
-- Tekan Ctrl+C untuk berhenti. Tidak ada yang tersimpan sampai semua pertanyaan dijawab.
+- Setelah pertanyaan terakhir, semua jawaban ditampilkan untuk diperiksa (key rahasia tetap
+  disembunyikan). Enter = simpan. Ketik `n` untuk mengubah satu jawaban: pilih nomornya atau nama
+  key-nya. Enter kosong di pilihan nomor = batal, tidak ada yang disimpan.
+- Tekan Ctrl+C untuk berhenti. Tidak ada yang tersimpan sampai jawaban disetujui.
 
 Langsung **backup** file `/etc/sultrakey/lakupandai.key` ke tempat aman yang offline.
 

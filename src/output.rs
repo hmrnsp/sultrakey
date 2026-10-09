@@ -3,9 +3,83 @@
 //!
 //! Nothing here ever receives a secret value: callers pass key names only.
 
-use std::io::{self, Write};
+use std::env;
+use std::io::{self, IsTerminal, Write};
+use std::sync::OnceLock;
 
 use crate::error::{Abort, Fail, Issue};
+
+/// Guidance text (stderr), set in dim italics so the key and the input stand out.
+pub fn faint(text: &str) -> String {
+    paint("2;3", text)
+}
+
+/// A rejected answer (stderr), in yellow so it is not missed among the guidance.
+pub fn caution(text: &str) -> String {
+    paint("33", text)
+}
+
+/// `Enter   pakai nilai yang ada`: the key bold cyan, padded to `width` so a list of them
+/// lines up, and what it does faint.
+pub fn key_hint(key: &str, what: &str, width: usize) -> String {
+    format!(
+        "{}  {}",
+        paint("1;36", &format!("{key:<width$}")),
+        faint(what)
+    )
+}
+
+/// The opening of an interactive command (stderr): a rounded box holding `title` (bold
+/// cyan) and, after it, `aside` (faint).
+pub fn banner(title: &str, aside: &str) -> [String; 3] {
+    let rule = "─".repeat(title.chars().count() + aside.chars().count() + 8);
+    [
+        format!("╭{rule}╮"),
+        format!("│  {}    {}  │", paint("1;36", title), faint(aside)),
+        format!("╰{rule}╯"),
+    ]
+}
+
+/// `text` wrapped in the SGR `codes`. Plain when stderr is not a terminal, `NO_COLOR` is
+/// set, or the terminal cannot show styles.
+fn paint(codes: &str, text: &str) -> String {
+    if styled() {
+        format!("\x1b[{codes}m{text}\x1b[0m")
+    } else {
+        text.to_string()
+    }
+}
+
+fn styled() -> bool {
+    static STYLED: OnceLock<bool> = OnceLock::new();
+    *STYLED.get_or_init(|| {
+        io::stderr().is_terminal()
+            && env::var_os("NO_COLOR").is_none_or(|v| v.is_empty())
+            && ansi_supported()
+    })
+}
+
+/// Windows consoles show escape codes literally unless asked to interpret them.
+#[cfg(windows)]
+fn ansi_supported() -> bool {
+    use windows_sys::Win32::System::Console::{
+        ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE,
+        SetConsoleMode,
+    };
+    // SAFETY: the handle comes from GetStdHandle and `mode` outlives the call.
+    unsafe {
+        let handle = GetStdHandle(STD_ERROR_HANDLE);
+        let mut mode = 0;
+        GetConsoleMode(handle, &mut mode) != 0
+            && (mode & ENABLE_VIRTUAL_TERMINAL_PROCESSING != 0
+                || SetConsoleMode(handle, mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) != 0)
+    }
+}
+
+#[cfg(not(windows))]
+fn ansi_supported() -> bool {
+    env::var_os("TERM").is_none_or(|term| term != "dumb")
+}
 
 /// `✓ <text>` on stdout.
 pub fn ok(text: &str) {
@@ -78,6 +152,17 @@ mod tests {
         assert!(is_broken_pipe(&wrapped));
         assert_eq!(report(&wrapped), 0);
         assert!(!is_broken_pipe(&anyhow::anyhow!("x")));
+    }
+
+    #[test]
+    fn banner_lines_have_one_width() {
+        let lines = banner("sultrakey setup", "v1.2.3");
+        let width = |line: &String| line.chars().count();
+        assert_eq!(width(&lines[0]), width(&lines[2]));
+        assert!(lines[1].contains("sultrakey setup") && lines[1].contains("v1.2.3"));
+        if !styled() {
+            assert_eq!(width(&lines[0]), width(&lines[1]));
+        }
     }
 
     #[test]

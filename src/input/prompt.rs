@@ -4,7 +4,7 @@
 //! which can be edited in place. Encryption is decided elsewhere.
 
 use std::env;
-use std::io::{self, IsTerminal};
+use std::io::{self, IsTerminal, Write};
 use std::path::PathBuf;
 
 use anyhow::{Result, bail};
@@ -13,6 +13,7 @@ use rustyline::error::ReadlineError;
 
 use super::source::{self, Answer};
 use crate::error::Abort;
+use crate::output;
 use crate::secret::Secret;
 
 /// The terminal, or a script in tests.
@@ -21,8 +22,24 @@ pub trait Prompter {
     fn visible(&mut self, label: &str, initial: &str) -> Result<String>;
     /// Typed as stars.
     fn masked(&mut self, label: &str) -> Result<Secret>;
-    /// A line of guidance (stderr), never a value.
+    /// A line of guidance (stderr), never a secret value.
     fn say(&mut self, text: &str);
+    /// Like `say`, for explanations under a key: shown faint (dim italics) on a terminal.
+    fn note(&mut self, text: &str) {
+        self.say(text);
+    }
+    /// Like `say`, for an answer that was rejected: shown in yellow on a terminal.
+    fn alert(&mut self, text: &str) {
+        self.say(text);
+    }
+    /// `(key, what it does)` pairs, one per line after `indent`, the descriptions lined
+    /// up; the keys stand out on a terminal.
+    fn keys(&mut self, indent: &str, keys: &[(&str, &str)]) {
+        let width = key_width(keys);
+        for (key, what) in keys {
+            self.say(&format!("{indent}{key:<width$}  {what}"));
+        }
+    }
 }
 
 pub struct Terminal;
@@ -45,17 +62,42 @@ impl Prompter for Terminal {
     }
 
     fn masked(&mut self, label: &str) -> Result<Secret> {
+        // The label goes through stderr, not rpassword: on Windows rpassword writes raw
+        // UTF-8 to the console, which shows `›` as `ΓÇ║`.
+        let mut stderr = io::stderr();
+        write!(stderr, "{label}")?;
+        stderr.flush()?;
         let config = rpassword::ConfigBuilder::new()
             .password_feedback_mask('*')
             .build();
-        Ok(Secret::new(rpassword::prompt_password_with_config(
-            label, config,
-        )?))
+        Ok(Secret::new(rpassword::read_password_with_config(config)?))
     }
 
     fn say(&mut self, text: &str) {
         eprintln!("{text}");
     }
+
+    fn note(&mut self, text: &str) {
+        eprintln!("{}", output::faint(text));
+    }
+
+    fn alert(&mut self, text: &str) {
+        eprintln!("{}", output::caution(text));
+    }
+
+    fn keys(&mut self, indent: &str, keys: &[(&str, &str)]) {
+        let width = key_width(keys);
+        for (key, what) in keys {
+            eprintln!("{indent}{}", output::key_hint(key, what, width));
+        }
+    }
+}
+
+fn key_width(keys: &[(&str, &str)]) -> usize {
+    keys.iter()
+        .map(|(key, _)| key.chars().count())
+        .max()
+        .unwrap_or(0)
 }
 
 /// Prompts need a keyboard (stdin) and a screen to draw on (stderr).
@@ -82,7 +124,7 @@ pub fn confirm(prompter: &mut dyn Prompter, question: &str, default: bool) -> Re
             "" => return Ok(default),
             "y" | "ya" | "yes" => return Ok(true),
             "n" | "t" | "tidak" | "no" => return Ok(false),
-            _ => prompter.say("Jawab y (ya) atau n (tidak)."),
+            _ => prompter.alert("Jawab y (ya) atau n (tidak)."),
         }
     }
 }
@@ -97,6 +139,21 @@ pub struct Question<'a> {
     /// The template's value: prefilled on the input line, editable. Ignored for masked
     /// keys, so it is never shown.
     pub default: Option<&'a str>,
+    /// `(n, total)` when asked as one of a series that showed `general_keys` once up
+    /// front; `None` shows them under the key instead.
+    pub step: Option<(usize, usize)>,
+}
+
+/// The keys that work for every question. `defaults`: some input lines start out filled.
+pub fn general_keys(defaults: bool) -> Vec<(&'static str, &'static str)> {
+    let mut keys = Vec::new();
+    if defaults {
+        keys.push(("Enter", "pakai nilai yang ada"));
+        keys.push(("Backspace", "ubah"));
+    }
+    keys.push(("@lokasi-file", "ambil isi dari file"));
+    keys.push(("Ctrl+C", "batal tanpa menyimpan"));
+    keys
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -110,26 +167,30 @@ pub enum Reply {
 pub fn ask(prompter: &mut dyn Prompter, question: &Question<'_>) -> Result<Reply> {
     let key = question.key;
     let default = question.default.filter(|_| !question.masked);
+    // `[2/5] DB_PORT`, with everything below lined up under the key name.
+    let number = question
+        .step
+        .map(|(n, total)| format!("[{n}/{total}] "))
+        .unwrap_or_default();
+    let pad = " ".repeat(number.chars().count().max(2));
     prompter.say("");
-    prompter.say(key);
+    prompter.say(&format!("{number}{key}"));
     for line in &question.help {
-        prompter.say(&format!("  {line}"));
-    }
-    let mut hints = vec![if question.masked {
-        "rahasia: tampil sebagai *, diketik dua kali".to_string()
-    } else {
-        "terlihat saat diketik".to_string()
-    }];
-    hints.push("@lokasi-file = isi dari file".into());
-    if default.is_some() {
-        hints.push("nilai bawaan sudah terisi: Enter = pakai, Backspace = ganti".into());
+        prompter.note(&format!("{pad}{line}"));
     }
     if question.optional {
-        hints.push("kosongkan = biarkan kosong".into());
+        prompter.note(&format!("{pad}boleh dikosongkan"));
     }
-    prompter.say(&format!("  ({})", hints.join("; ")));
+    if question.step.is_none() {
+        prompter.keys(&pad, &general_keys(default.is_some()));
+    }
 
-    let label = format!("  Isi {key}: ");
+    // Both labels the same width, so the two rows of stars line up.
+    let (label, again_label) = if question.masked {
+        (format!("{pad}›        "), format!("{pad}ulangi › "))
+    } else {
+        (format!("{pad}› "), String::new())
+    };
     loop {
         let typed = if question.masked {
             prompter.masked(&label)?
@@ -146,30 +207,30 @@ pub fn ask(prompter: &mut dyn Prompter, question: &Question<'_>) -> Result<Reply
             if question.optional {
                 return Ok(Reply::Empty);
             }
-            prompter.say(&format!("  {key} wajib diisi."));
+            prompter.alert(&format!("{pad}{key} wajib diisi."));
             continue;
         }
         let answer = match source::interpret(typed.expose()) {
             Ok(answer) => answer,
             Err(fail) => {
-                prompter.say(&format!("  {fail}"));
+                prompter.alert(&format!("{pad}{fail}"));
                 continue;
             }
         };
         match answer {
             Answer::File(path) => match source::read_file(&path) {
                 Ok(value) => return Ok(Reply::Value(value, Some(path))),
-                Err(fail) => prompter.say(&format!("  {fail}")),
+                Err(fail) => prompter.alert(&format!("{pad}{fail}")),
             },
             Answer::Text(value) => {
                 if let Err(fail) = source::check_text(&value, key) {
-                    prompter.say(&format!("  {fail}"));
+                    prompter.alert(&format!("{pad}{fail}"));
                     continue;
                 }
                 if question.masked {
-                    let again = prompter.masked(&format!("  Ulangi {key}: "))?;
+                    let again = prompter.masked(&again_label)?;
                     if again != typed {
-                        prompter.say("  Tidak sama. Ulangi.");
+                        prompter.alert(&format!("{pad}Tidak sama. Ulangi."));
                         continue;
                     }
                 }
@@ -232,6 +293,7 @@ pub mod tests {
             masked,
             optional,
             default,
+            step: None,
         }
     }
 
@@ -277,7 +339,12 @@ pub mod tests {
         let reply = ask(&mut script, &question(false, false, Some("8899"))).unwrap();
         assert_eq!(value(reply), "8899");
         assert!(script.log.iter().any(|l| l == "initial:8899"));
-        assert!(script.log.iter().any(|l| l.contains("Enter = pakai")));
+        assert!(
+            script
+                .log
+                .iter()
+                .any(|l| l.contains("pakai nilai yang ada"))
+        );
 
         // Cleared on a required key: asked again, prefilled again.
         let mut script = Script::new(&["", "3000"]);

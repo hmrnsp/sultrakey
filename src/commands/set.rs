@@ -54,6 +54,7 @@ pub fn run(ctx: &Ctx, key: &str, stdin: bool, file: Option<&Path>) -> Result<i32
             masked: entry.masked(),
             optional: flags.optional,
             default: None,
+            step: None,
         };
         match prompt::ask(&mut Terminal, &question)? {
             Reply::Value(value, from) => {

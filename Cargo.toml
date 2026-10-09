@@ -1,6 +1,6 @@
 [package]
 name = "sultrakey"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 rust-version = "1.89"
 description = "File .env terenkripsi (age X25519) dan peluncur aplikasi dengan value yang sudah dibuka"

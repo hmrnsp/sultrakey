@@ -112,9 +112,9 @@ Aturan penulisan:
   (`# email @ kantor`).
 
 Tampilan ketikan tanpa `@masked`: key tetap tampil `*` bila salah satu bagian namanya (dipisah `_`,
-huruf besar atau kecil sama saja) adalah `PASSWORD`, `PASSWD`, `PASS`, `PWD`, `SECRET`, `KEY`, `TOKEN`,
-`PRIVATE`, `CREDENTIAL`, `AUTH`, atau `SALT`. Contoh: `REDIS_PASSWORD` dan `API_KEY` tampil `*`;
-`KEYCLOAK_URL` dan `PASSPORT_URL` terlihat. Tampilan tidak memengaruhi enkripsi: yang menentukan
+huruf besar atau kecil sama saja) adalah `PASSWORD`, `PASSWD`, `PASS`, `PWD`, `SECRET`, `TOKEN`,
+`PRIVATE`, `CREDENTIAL`, `AUTH`, atau `SALT`. Contoh: `REDIS_PASSWORD` tampil `*`; `API_KEY` dan
+`PASSPORT_URL` terlihat (beri `@masked` bila `API_KEY` harus tampil `*`). Tampilan tidak memengaruhi enkripsi: yang menentukan
 enkripsi hanya `@plain`.
 
 Contoh kombinasi:

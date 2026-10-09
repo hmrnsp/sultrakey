@@ -11,7 +11,7 @@ use anyhow::Result;
 use super::{Ctx, header, load_env, load_template, read_stdin, recipient, write_env};
 use crate::crypto;
 use crate::envfile::{self, Document, Entry, Value};
-use crate::error::Fail;
+use crate::error::{Abort, Fail};
 use crate::fsutil::atomic::Owner as FileOwner;
 use crate::fsutil::lock::{DEFAULT_TIMEOUT, FileLock};
 use crate::input::prompt::{self, Prompter, Question, Reply, Terminal};
@@ -46,14 +46,16 @@ pub fn run(ctx: &Ctx) -> Result<i32> {
     }
 
     let mut files = Vec::new();
-    let filled = if prompt::interactive() {
+    let interactive = prompt::interactive();
+    let filled = if interactive {
         ask_empty(&mut Terminal, &mut doc, &template, &recipient, &mut files)?
     } else {
         from_stdin(ctx, &mut doc, &template, &recipient, &mut files)?
     };
 
     write_env(ctx, &doc, FileOwner::Keep)?;
-    if filled.is_empty() {
+    // In a terminal the keys were just reviewed on screen; only stdin needs the list.
+    if filled.is_empty() || interactive {
         output::ok(&format!("{} disimpan.", ctx.env.display()));
     } else {
         output::ok(&format!(
@@ -131,36 +133,121 @@ fn ask_empty(
         output::info("Semua key sudah terisi.");
         return Ok(Vec::new());
     }
-    output::info(&format!(
-        "{} key perlu diisi. Tekan Ctrl+C untuk berhenti tanpa menyimpan apa pun.",
-        empty.len()
-    ));
+    let total = empty.len();
+    let defaults = empty.iter().any(|key| {
+        doc.get(key)
+            .is_some_and(|entry| default_for(template, entry).is_some())
+    });
+    for line in output::banner("sultrakey setup", concat!("v", env!("CARGO_PKG_VERSION"))) {
+        prompter.say(&line);
+    }
+    prompter.keys("  ", &prompt::general_keys(defaults));
+
+    let mut replies = Vec::with_capacity(total);
+    for (i, key) in empty.iter().enumerate() {
+        replies.push(ask_one(prompter, doc, template, key, (i + 1, total))?);
+    }
+    // Nothing is kept until the answers are confirmed: a typo is fixed here, not found
+    // later when the application fails to connect.
+    loop {
+        review(prompter, doc, &empty, &replies);
+        if prompt::confirm(prompter, "Simpan?", true)? {
+            break;
+        }
+        let Some(i) = pick(prompter, &empty)? else {
+            return Err(Abort::Cancelled.into());
+        };
+        replies[i] = ask_one(prompter, doc, template, &empty[i], (i + 1, total))?;
+    }
+    prompter.say("");
+
     let mut filled = Vec::new();
-    for key in empty {
-        let Some(entry) = doc.get(&key) else { continue };
-        let question = Question {
-            key: &key,
+    for (key, reply) in empty.into_iter().zip(replies) {
+        let Some(entry) = doc.get_mut(&key) else {
+            continue;
+        };
+        entry.value = match reply {
+            Reply::Value(value, file) => {
+                files.extend(file);
+                store(entry.flags.plain, value, recipient)?
+            }
+            Reply::Empty => Value::Empty,
+        };
+        if entry.value != Value::Empty {
+            filled.push(key);
+        }
+    }
+    Ok(filled)
+}
+
+fn ask_one(
+    prompter: &mut dyn Prompter,
+    doc: &Document,
+    template: &Document,
+    key: &str,
+    step: (usize, usize),
+) -> Result<Reply> {
+    let Some(entry) = doc.get(key) else {
+        return Ok(Reply::Empty);
+    };
+    prompt::ask(
+        prompter,
+        &Question {
+            key,
             help: entry.help(),
             masked: entry.masked(),
             optional: entry.flags.optional,
             default: default_for(template, entry),
+            step: Some(step),
+        },
+    )
+}
+
+/// The answers as a numbered list. Secret values are never shown, not even their length.
+/// Shown in a terminal only, where the visible values were just typed on screen anyway.
+fn review(prompter: &mut dyn Prompter, doc: &Document, keys: &[String], replies: &[Reply]) {
+    let width = keys
+        .iter()
+        .map(|key| key.chars().count())
+        .max()
+        .unwrap_or(0);
+    let digits = keys.len().to_string().len();
+    prompter.say("");
+    prompter.say("Periksa sebelum disimpan:");
+    for (i, (key, reply)) in keys.iter().zip(replies).enumerate() {
+        let masked = doc.get(key).is_some_and(Entry::masked);
+        let shown = match reply {
+            Reply::Empty => "(kosong)".to_string(),
+            Reply::Value(_, Some(path)) => format!("(isi file {})", path.display()),
+            // Always eight: the real length stays hidden.
+            Reply::Value(_, None) if masked => "********".to_string(),
+            Reply::Value(value, None) => value.expose().to_string(),
         };
-        let plain = entry.flags.plain;
-        let value = match prompt::ask(prompter, &question)? {
-            Reply::Value(value, file) => {
-                files.extend(file);
-                store(plain, value, recipient)?
-            }
-            Reply::Empty => Value::Empty,
-        };
-        if value != Value::Empty {
-            filled.push(key.clone());
+        prompter.say(&format!("  {:>digits$}. {key:<width$}  {shown}", i + 1));
+    }
+}
+
+/// Which answer to redo, by number or key name; `None` (empty line) stops without saving.
+fn pick(prompter: &mut dyn Prompter, keys: &[String]) -> Result<Option<usize>> {
+    let total = keys.len();
+    loop {
+        let reply = prompter.visible(
+            &format!("Ubah nomor berapa? (1-{total}, Enter = batal tanpa menyimpan) "),
+            "",
+        )?;
+        let reply = reply.trim();
+        if reply.is_empty() {
+            return Ok(None);
         }
-        if let Some(entry) = doc.get_mut(&key) {
-            entry.value = value;
+        let found = match reply.parse::<usize>() {
+            Ok(n) => (1..=total).contains(&n).then(|| n - 1),
+            Err(_) => keys.iter().position(|key| key.eq_ignore_ascii_case(reply)),
+        };
+        match found {
+            Some(i) => return Ok(Some(i)),
+            None => prompter.alert(&format!("Ketik nomor 1 sampai {total}, atau nama key-nya.")),
         }
     }
-    Ok(filled)
 }
 
 /// `KEY=value` lines. Keys that already have a value are not changed (that is what `set`
@@ -237,6 +324,7 @@ mod tests {
             "pg://u:p@h",
             "jwt",
             "jwt",
+            "",
         ]);
         let mut files = Vec::new();
 
@@ -263,18 +351,21 @@ mod tests {
         assert_eq!(
             asked,
             [
-                "visible:  Isi PORT: ",
+                "visible:      › ",
                 "initial:8899",
-                "visible:  Isi REDIS_HOST: ",
-                "masked:  Isi REDIS_PASSWORD: ",
-                "masked:  Ulangi REDIS_PASSWORD: ",
-                "masked:  Isi DATABASE_URL: ",
-                "masked:  Ulangi DATABASE_URL: ",
-                "masked:  Isi JWT_SECRET: ",
-                "masked:  Ulangi JWT_SECRET: ",
+                "visible:      › ",
+                "masked:      ›        ",
+                "masked:      ulangi › ",
+                "masked:      ›        ",
+                "masked:      ulangi › ",
+                "masked:      ›        ",
+                "masked:      ulangi › ",
+                "visible:Simpan? [Y/n] ",
             ],
             "the example secret is never prefilled"
         );
+        assert!(script.log.iter().any(|l| l == "[1/5] PORT"));
+        assert!(script.log.iter().any(|l| l == "[5/5] JWT_SECRET"));
         assert!(script.log.iter().all(|l| !l.contains("changeme")));
         let value = |key| doc.get(key).unwrap().value.clone();
         assert_eq!(value("PORT"), Value::Plain(Secret::from("8899")));
@@ -284,5 +375,105 @@ mod tests {
                 "{key}: visible while typed, still encrypted"
             );
         }
+    }
+
+    fn db_template() -> Document {
+        envfile::parse("DB_HOST=localhost\nDB_USER=\nDB_PASSWORD=\n").unwrap()
+    }
+
+    #[test]
+    fn the_review_shows_typed_values_but_never_secrets() {
+        let template = db_template();
+        let mut doc = envfile::sync(&template, &Document::default()).doc;
+        let recipient = crypto::generate().to_public();
+        let mut script = Script::new(&["locahost", "postgres", "rahasia1", "rahasia1", ""]);
+
+        ask_empty(
+            &mut script,
+            &mut doc,
+            &template,
+            &recipient,
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        let review: Vec<&str> = script
+            .log
+            .iter()
+            .skip_while(|l| *l != "Periksa sebelum disimpan:")
+            .skip(1)
+            .take(3)
+            .map(String::as_str)
+            .collect();
+        assert_eq!(
+            review,
+            [
+                "  1. DB_HOST      locahost",
+                "  2. DB_USER      postgres",
+                "  3. DB_PASSWORD  ********",
+            ]
+        );
+        assert!(script.log.iter().all(|l| !l.contains("rahasia1")));
+    }
+
+    #[test]
+    fn a_reviewed_answer_can_be_redone_by_number_or_name() {
+        let template = db_template();
+        let mut doc = envfile::sync(&template, &Document::default()).doc;
+        let recipient = crypto::generate().to_public();
+        let first_round = ["locahost", "postgres", "pw", "pw"];
+        let fix_host_by_number_after_a_bad_pick = ["n", "9", "1", "localhost"];
+        let fix_user_by_name = ["t", "db_user", "admin"];
+        let save = [""];
+        let mut script = Script::new(
+            &[
+                &first_round[..],
+                &fix_host_by_number_after_a_bad_pick,
+                &fix_user_by_name,
+                &save,
+            ]
+            .concat(),
+        );
+
+        let filled = ask_empty(
+            &mut script,
+            &mut doc,
+            &template,
+            &recipient,
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert_eq!(filled, ["DB_HOST", "DB_USER", "DB_PASSWORD"]);
+        assert!(
+            script
+                .log
+                .iter()
+                .any(|l| l.contains("Ketik nomor 1 sampai 3"))
+        );
+        let review = script
+            .log
+            .iter()
+            .rposition(|l| l == "Periksa sebelum disimpan:")
+            .unwrap();
+        assert_eq!(script.log[review + 1], "  1. DB_HOST      localhost");
+        assert_eq!(script.log[review + 2], "  2. DB_USER      admin");
+        for key in ["DB_HOST", "DB_USER", "DB_PASSWORD"] {
+            assert!(matches!(doc.get(key).unwrap().value, Value::Encrypted(_)));
+        }
+    }
+
+    #[test]
+    fn declining_the_review_without_a_pick_changes_nothing() {
+        let template = db_template();
+        let mut doc = envfile::sync(&template, &Document::default()).doc;
+        let recipient = crypto::generate().to_public();
+        let mut script = Script::new(&["localhost", "postgres", "pw", "pw", "n", ""]);
+        let mut files = Vec::new();
+
+        let err = ask_empty(&mut script, &mut doc, &template, &recipient, &mut files).unwrap_err();
+
+        assert_eq!(err.downcast_ref::<Abort>(), Some(&Abort::Cancelled));
+        assert!(doc.entries().all(|entry| entry.value == Value::Empty));
     }
 }

@@ -62,15 +62,15 @@ pub struct Flags {
     pub masked: bool,
 }
 
-/// Name parts (split on `_`) that make a key typed as stars: `REDIS_PASSWORD`, `API_KEY`.
-/// Whole parts only, so `KEYCLOAK_URL` and `PASSPORT_URL` stay visible.
+/// Name parts (split on `_`) that make a key typed as stars: `REDIS_PASSWORD`, `JWT_SECRET`.
+/// Whole parts only, so `PASSPORT_URL` stays visible. Not `KEY`: names like `API_KEY` or
+/// `KEY_PREFIX` are typed visibly unless marked `@masked`.
 const SENSITIVE_WORDS: &[&str] = &[
     "PASSWORD",
     "PASSWD",
     "PASS",
     "PWD",
     "SECRET",
-    "KEY",
     "TOKEN",
     "PRIVATE",
     "CREDENTIAL",
@@ -231,7 +231,6 @@ mod tests {
             "REDIS_PASSWORD",
             "DB_PASS",
             "db_pass",
-            "API_KEY",
             "JWT_SECRET",
             "GITHUB_TOKEN",
             "PRIVATE_KEY_PATH",
@@ -243,6 +242,7 @@ mod tests {
         for visible in [
             "REDIS_HOST",
             "KEYCLOAK_URL",
+            "API_KEY",
             "PASSPORT_URL",
             "BYPASS_MODE",
             "MONKEY",
