@@ -136,7 +136,7 @@ Contoh kombinasi:
 | `SULTRAKEY_PUBLIC_KEY=age1...` | Baris awal `.env` (dibuat `init`) | Public key untuk mengenkripsi. Harus pasangan file kunci; kalau tidak, `check` gagal. |
 | `SULTRAKEY_*` | Nama key | Awalan milik sultrakey. Selain dua baris di atas, key berawalan ini ditolak di `.env` dan template. Variabel environment berawalan ini juga tidak pernah diteruskan ke aplikasi oleh `run`. |
 | `enc:...` | Value di `.env` | Value terenkripsi. Jangan diedit manual; ganti lewat `sultrakey set KEY`. |
-| `@/lokasi/file` | Jawaban saat `setup` (atau `KEY=@file` lewat stdin) | Isi value diambil dari file, untuk value banyak baris seperti sertifikat. Hapus file itu setelahnya. |
+| `@/lokasi/file` | Jawaban saat `setup` (atau `KEY=@file` lewat stdin) | Isi value diambil dari file, untuk value banyak baris seperti sertifikat. Hapus file itu setelahnya. Tanpa `@`, path disimpan apa adanya sebagai teks (cocok untuk `PUBLIC_KEY_PATH=keys/public_key.pem`). |
 | `@@...` | Jawaban saat `setup` | Value yang memang diawali `@`. `@@abc` disimpan sebagai `@abc`. |
 
 Hasil `.env`:

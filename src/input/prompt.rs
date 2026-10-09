@@ -151,7 +151,10 @@ pub fn general_keys(defaults: bool) -> Vec<(&'static str, &'static str)> {
         keys.push(("Enter", "pakai nilai yang ada"));
         keys.push(("Backspace", "ubah"));
     }
-    keys.push(("@lokasi-file", "ambil isi dari file"));
+    keys.push((
+        "@lokasi-file",
+        "value = ISI file itu (tanpa @, path disimpan apa adanya sebagai teks)",
+    ));
     keys.push(("Ctrl+C", "batal tanpa menyimpan"));
     keys
 }
