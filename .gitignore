@@ -1,0 +1,5 @@
+/target
+
+# Secrets never belong in git
+.env
+*.key

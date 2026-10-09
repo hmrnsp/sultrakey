@@ -1,0 +1,125 @@
+# Builds and publishes a release when a tag like v0.1.0 is pushed:
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# Files: one plain binary per target (sultrakey-<target>[.exe]), SHA256SUMS,
+# manifest.json (read by `sultrakey update`), install.sh and install.ps1.
+# Moving to the office GitLab later: build with SULTRAKEY_RELEASE_BASE set to the new
+# release address, and publish the same files there.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    name: tag matches Cargo.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Compare
+        run: |
+          crate="$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)"
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$crate" != "$tag" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match Cargo.toml version $crate"
+            exit 1
+          fi
+
+  build:
+    name: build ${{ matrix.target }}
+    needs: version
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-latest, musl: true, smoke: true }
+          - { target: aarch64-unknown-linux-musl, os: ubuntu-24.04-arm, musl: true, smoke: true }
+          - { target: x86_64-pc-windows-msvc, os: windows-latest, musl: false, smoke: true }
+          - { target: aarch64-apple-darwin, os: macos-latest, musl: false, smoke: true }
+          # Cross-built on the ARM macOS runner; it cannot run there without Rosetta.
+          - { target: x86_64-apple-darwin, os: macos-latest, musl: false, smoke: false }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install musl tools
+        if: matrix.musl
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq musl-tools
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Collect
+        shell: bash
+        run: |
+          ext=""
+          case "${{ matrix.target }}" in *windows*) ext=".exe" ;; esac
+          mkdir -p dist
+          cp "target/${{ matrix.target }}/release/sultrakey$ext" "dist/sultrakey-${{ matrix.target }}$ext"
+      - name: Smoke test
+        if: matrix.smoke
+        shell: bash
+        run: |
+          out="$(dist/sultrakey-${{ matrix.target }}* --version)"
+          echo "$out"
+          [ "$out" = "sultrakey ${GITHUB_REF_NAME#v}" ]
+      - uses: actions/upload-artifact@v7
+        with:
+          name: bin-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    name: publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: bin-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums and manifest
+        run: |
+          cp scripts/install.sh scripts/install.ps1 dist/
+          cd dist
+          sha256sum sultrakey-* install.sh install.ps1 > SHA256SUMS
+          cat SHA256SUMS
+          version="${GITHUB_REF_NAME#v}"
+          files="[]"
+          for file in sultrakey-*; do
+            target="${file#sultrakey-}"
+            target="${target%.exe}"
+            sum="$(sha256sum "$file" | cut -d' ' -f1)"
+            files="$(jq -c --arg t "$target" --arg n "$file" --arg s "$sum" \
+              '. + [{target: $t, name: $n, sha256: $s}]' <<< "$files")"
+          done
+          jq -n --arg v "$version" --argjson f "$files" \
+            '{name: "sultrakey", version: $v, files: $f}' > manifest.json
+          cat manifest.json
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
