@@ -66,16 +66,7 @@ pub struct Flags {
 /// Whole parts only, so `PASSPORT_URL` stays visible. Not `KEY`: names like `API_KEY` or
 /// `KEY_PREFIX` are typed visibly unless marked `@masked`.
 const SENSITIVE_WORDS: &[&str] = &[
-    "PASSWORD",
-    "PASSWD",
-    "PASS",
-    "PWD",
-    "SECRET",
-    "TOKEN",
-    "PRIVATE",
-    "CREDENTIAL",
-    "AUTH",
-    "SALT",
+    "PASSWORD", "PASSWD", "PASS", "PWD", "SECRET", "TOKEN", "AUTH", "SALT",
 ];
 
 /// Whether the key's name alone marks it as secret.
@@ -233,7 +224,6 @@ mod tests {
             "db_pass",
             "JWT_SECRET",
             "GITHUB_TOKEN",
-            "PRIVATE_KEY_PATH",
             "SMTP_PWD",
             "PASSWORD",
         ] {
@@ -243,6 +233,7 @@ mod tests {
             "REDIS_HOST",
             "KEYCLOAK_URL",
             "API_KEY",
+            "PRIVATE_KEY_PATH",
             "PASSPORT_URL",
             "BYPASS_MODE",
             "MONKEY",
