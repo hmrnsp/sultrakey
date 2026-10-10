@@ -8,6 +8,7 @@ Node.js · Spring Boot · Go · Rust · anything that reads environment variable
 
 [![CI](https://github.com/hmrnsp/sultrakey/actions/workflows/ci.yml/badge.svg)](https://github.com/hmrnsp/sultrakey/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/hmrnsp/sultrakey?color=blue)](https://github.com/hmrnsp/sultrakey/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.89%2B-orange?logo=rust)](https://www.rust-lang.org)
 [![Encryption: age](https://img.shields.io/badge/encryption-age%20X25519-green)](https://age-encryption.org)
 [![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)](https://github.com/hmrnsp/sultrakey/releases/latest)
@@ -320,3 +321,7 @@ src/update/    manifest, checksum, HTTPS downloads
 ```
 
 Out of scope for v1: key rotation, a command that prints plain values, and secret manager integration.
+
+## License
+
+[MIT](LICENSE) © 2026 Rede

@@ -8,6 +8,7 @@ Node.js · Spring Boot · Go · Rust · apa saja yang membaca variabel lingkunga
 
 [![CI](https://github.com/hmrnsp/sultrakey/actions/workflows/ci.yml/badge.svg)](https://github.com/hmrnsp/sultrakey/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/hmrnsp/sultrakey?color=blue)](https://github.com/hmrnsp/sultrakey/releases/latest)
+[![Lisensi: MIT](https://img.shields.io/badge/lisensi-MIT-yellow.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.89%2B-orange?logo=rust)](https://www.rust-lang.org)
 [![Enkripsi: age](https://img.shields.io/badge/enkripsi-age%20X25519-green)](https://age-encryption.org)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)](https://github.com/hmrnsp/sultrakey/releases/latest)
@@ -323,3 +324,7 @@ src/update/    manifes, checksum, unduhan HTTPS
 
 Di luar cakupan v1: rotasi kunci, perintah untuk mencetak nilai polos, dan integrasi dengan secret
 manager.
+
+## Lisensi
+
+[MIT](LICENSE) © 2026 Rede

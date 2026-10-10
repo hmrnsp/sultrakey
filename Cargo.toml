@@ -5,6 +5,7 @@ edition = "2024"
 rust-version = "1.89"
 description = "Encrypted .env files (age X25519) and a launcher that runs applications with the decrypted values"
 repository = "https://github.com/hmrnsp/sultrakey"
+license = "MIT"
 readme = "README.md"
 
 [lib]
