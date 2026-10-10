@@ -1,7 +1,7 @@
 //! `setup`: brings the `.env` in line with the template, encrypts plain values of secret
-//! keys (D13), then asks for every empty key (D12) on one screen. Without a terminal it reads
-//! `KEY=value` lines from stdin instead. The file is written once, at the end: stopping
-//! halfway changes nothing.
+//! keys (D13), then shows every key on one screen (D12): the empty ones to fill, the filled
+//! ones to keep or replace. Without a terminal it reads `KEY=value` lines from stdin
+//! instead. The file is written once, at the end: stopping halfway changes nothing.
 
 use std::path::PathBuf;
 
@@ -116,8 +116,8 @@ fn store(plain: bool, value: Secret, recipient: &Recipient) -> Result<Value> {
     })
 }
 
-/// Every empty key on one screen (`input::form`). Nothing is stored before the answers
-/// are reviewed and saved there.
+/// Every key on one screen (`input::form`), opened only while some key is empty. Nothing
+/// is stored before the answers are reviewed and saved there.
 fn fill_in_form(
     doc: &mut Document,
     template: &Document,
@@ -125,7 +125,7 @@ fn fill_in_form(
     files: &mut Vec<PathBuf>,
 ) -> Result<Vec<String>> {
     let fields = fields(doc, template);
-    if fields.is_empty() {
+    if fields.iter().all(|field| field.filled) {
         output::info("Every key already has a value.");
         return Ok(Vec::new());
     }
@@ -134,10 +134,10 @@ fn fill_in_form(
     apply(doc, keys, answers, recipient, files)
 }
 
-/// What the form asks about each empty key, in file order.
+/// What the form shows about each key, in file order. Keys with a value are marked filled;
+/// the form shows their default as an example only.
 fn fields(doc: &Document, template: &Document) -> Vec<Field> {
     doc.entries()
-        .filter(|entry| entry.value == Value::Empty)
         .map(|entry| Field {
             key: entry.key.clone(),
             help: entry.help().into_iter().map(String::from).collect(),
@@ -145,11 +145,12 @@ fn fields(doc: &Document, template: &Document) -> Vec<Field> {
             plain: entry.flags.plain,
             optional: entry.flags.optional,
             default: default_for(template, entry).map(String::from),
+            filled: entry.value != Value::Empty,
         })
         .collect()
 }
 
-/// Stores the answers; unanswered keys stay empty. Returns the keys that got a value.
+/// Stores the answers; unanswered keys stay as they are. Returns the keys that got a value.
 fn apply(
     doc: &mut Document,
     keys: Vec<String>,
@@ -167,7 +168,8 @@ fn apply(
                 files.extend(file);
                 store(entry.flags.plain, value, recipient)?
             }
-            Some(Reply::Empty) | None => Value::Empty,
+            Some(Reply::Empty) => Value::Empty,
+            None => continue,
         };
         if entry.value != Value::Empty {
             filled.push(key);
@@ -269,12 +271,43 @@ mod tests {
     }
 
     #[test]
-    fn keys_with_a_value_are_not_asked() {
+    fn keys_with_a_value_are_shown_as_filled() {
+        let template = envfile::parse("# @plain\nA=example\nB=\n").unwrap();
+        let mut doc = envfile::sync(&template, &Document::default()).doc;
+        doc.get_mut("A").unwrap().value = Value::Plain(Secret::from("real"));
+        let summary: Vec<(String, bool, Option<String>)> = fields(&doc, &template)
+            .into_iter()
+            .map(|f| (f.key, f.filled, f.default))
+            .collect();
+        assert_eq!(
+            summary,
+            [
+                ("A".into(), true, Some("example".into())),
+                ("B".into(), false, None)
+            ]
+        );
+    }
+
+    #[test]
+    fn unanswered_filled_keys_keep_their_value() {
         let template = envfile::parse("A=\nB=\n").unwrap();
         let mut doc = envfile::sync(&template, &Document::default()).doc;
         doc.get_mut("A").unwrap().value = Value::Encrypted("QQ==".into());
-        let keys: Vec<String> = fields(&doc, &template).into_iter().map(|f| f.key).collect();
-        assert_eq!(keys, ["B"]);
+        let recipient = crypto::generate().to_public();
+        let keys = ["A", "B"].map(String::from).to_vec();
+
+        let filled = apply(
+            &mut doc,
+            keys,
+            vec![None, None],
+            &recipient,
+            &mut Vec::new(),
+        )
+        .unwrap();
+
+        assert!(filled.is_empty());
+        assert_eq!(doc.get("A").unwrap().value, Value::Encrypted("QQ==".into()));
+        assert_eq!(doc.get("B").unwrap().value, Value::Empty);
     }
 
     #[test]

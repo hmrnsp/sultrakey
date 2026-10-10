@@ -48,7 +48,8 @@ lalu jalankan `./sultrakey-<target> install` (gunakan `sudo` di server). Dari ko
    yang bukan rahasia). Berkas `.env` asli tidak boleh masuk git. Tambahkan `.env` dan `.env.lock` ke
    `.gitignore`. Jangan memakai pola `.env*`, karena `.env.example` ikut terabaikan.
 2. `sultrakey init <app>` membuat pasangan kunci dan `.env` dari templat.
-3. `sultrakey setup` menanyakan variabel yang masih kosong, lalu menyimpannya secara terenkripsi.
+3. `sultrakey setup` menanyakan variabel yang masih kosong (variabel yang sudah terisi ikut tampil dan
+   dapat diganti), lalu menyimpannya secara terenkripsi.
 4. `sultrakey check` memastikan semua variabel terisi dan dapat dibuka.
 5. `sultrakey run -- <perintah>` membuka nilai, mengisinya ke variabel lingkungan, lalu menjalankan
    aplikasi.
@@ -75,8 +76,9 @@ sultrakey run -- npm run dev
 
 ![Layar setup sultrakey](docs/Screenshot.png)
 
-Di terminal, `setup` menampilkan semua variabel yang masih kosong dalam satu layar. Daftar variabel
-berada di kiri, sedangkan variabel yang dipilih berada di kanan.
+Di terminal, `setup` menampilkan semua variabel dalam satu layar. Daftar variabel berada di kiri,
+sedangkan variabel yang dipilih berada di kanan. Variabel yang sudah terisi tampil redup dengan tanda
+`✓`. Layar dimulai dari variabel kosong pertama.
 
 - Di bawah nama variabel terdapat tiga label:
   - `SECRET` / `VISIBLE`: cara pengetikan (tampil sebagai bintang dan diketik dua kali, atau tampil
@@ -84,13 +86,18 @@ berada di kiri, sedangkan variabel yang dipilih berada di kanan.
   - `REQUIRED` / `OPTIONAL`: wajib diisi atau boleh kosong.
   - `ENCRYPTED` / `PLAIN`: cara penyimpanan di `.env`.
 - Keterangan (tampil redup) diambil dari komentar di atas variabel pada templat, diikuti nilai bawaan
-  (`Default: ...`) bila ada. Variabel tanpa komentar menampilkan `No description for this key yet.`
+  (`Default: ...`) bila ada. Pada variabel yang sudah terisi tertulis `Example: ...`: itu nilai dari templat,
+  bukan nilai yang tersimpan di `.env`. Variabel tanpa komentar menampilkan `No description for this key yet.`
 - Saat Anda mengetik `@lokasi-berkas`, layar langsung memberi tahu apakah berkas tersebut ada. Isi
   berkas tidak pernah ditampilkan.
-- Enter menyimpan isian dan berpindah ke variabel berikutnya. Setelah variabel terakhir, muncul daftar
-  `Review before saving` untuk diperiksa. Nilai rahasia pada daftar itu selalu tampil `********`.
+- Enter menyimpan isian dan berpindah ke variabel kosong berikutnya. Setelah yang terakhir, muncul
+  daftar `Review before saving` untuk diperiksa. Nilai rahasia pada daftar itu selalu tampil `********`.
+- Variabel yang sudah terisi dimulai dengan baris kosong; nilainya tidak pernah ditampilkan. Enter pada baris
+  kosong itu mempertahankan nilai lama; mengetik nilai baru menggantinya. Di daftar review tampil
+  `(unchanged)`.
 - `.env` baru ditulis setelah `[ Save ]` dipilih. Esc atau Ctrl+C membatalkan tanpa mengubah apa pun.
-- Variabel yang dilewati (berpindah dengan ↑↓ tanpa menekan Enter) tetap kosong.
+- Variabel yang dilewati (berpindah dengan ↑↓ tanpa menekan Enter) tidak berubah.
+- Bila semua variabel sudah terisi, `setup` hanya memberi tahu hal itu dan tidak membuka layar.
 - F1 menampilkan arti label, anotasi (`@plain`, `@optional`, `@masking`), dan semua tombol. Isinya
   dapat digulir dengan ↑↓; tombol lain menutupnya.
 
@@ -191,7 +198,7 @@ REDIS_HOST=enc:YWdlLWVuY3J5cHRpb24...
 | Perintah                                               | Fungsi                                                                                                                                                                                                                                                                                                                                |
 | ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init <app> [--owner user[:group]]`                    | Membuat kunci jika belum ada (tidak pernah menimpa). Membuat `.env` dari templat, atau mengambil alih `.env` polos lama dengan mengenkripsi nilainya.                                                                                                                                                                                 |
-| `setup`                                                | Menyamakan `.env` dengan templat, mengenkripsi nilai polos pada variabel rahasia, lalu menampilkan semua variabel kosong dalam satu layar (variabel rahasia tampil `*`). Tanpa terminal: membaca baris `KEY=value` dari stdin.                                                                                                        |
+| `setup`                                                | Menyamakan `.env` dengan templat, mengenkripsi nilai polos pada variabel rahasia, lalu menampilkan semua variabel dalam satu layar: yang kosong untuk diisi, yang terisi untuk dipertahankan atau diganti (variabel rahasia tampil `*`). Tanpa terminal: membaca baris `KEY=value` dari stdin.                                    |
 | `set <KEY> [--stdin \| --file F]`                      | Mengganti satu nilai. Nilai tidak pernah diambil dari argumen.                                                                                                                                                                                                                                                                        |
 | `list`                                                 | Menampilkan nama variabel dan statusnya; nilai tidak pernah ditampilkan. Di terminal: tabel berwarna dengan kolom `STORED` (`ENCRYPTED`/`PLAIN`) dan `TYPED` (`SECRET`/`VISIBLE`), disertai ringkasan variabel yang masih memerlukan `setup`. Saat dialirkan ke skrip (`\| grep`, `> file`): kolom `KEY  STATUS` polos seperti biasa. |
 | `check`                                                | Memastikan semua variabel wajib terisi, semua `enc:` dapat dibuka, kunci cocok, dan izin berkas kunci aman. Di terminal: tabel hasil per variabel dan berkas kunci. Masalah selalu dicetak sebagai baris `✗ ...` dan `Fix: ...` di stderr.                                                                                            |

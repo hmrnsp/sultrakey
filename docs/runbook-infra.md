@@ -52,7 +52,7 @@ perintah di atas dengan `sudo -E sh` sebagai ganti `sudo sh`.
 Memasang versi tertentu:
 
 ```sh
-curl -fsSL https://github.com/hmrnsp/sultrakey/releases/latest/download/install.sh | sudo SULTRAKEY_VERSION=0.5.0 sh
+curl -fsSL https://github.com/hmrnsp/sultrakey/releases/latest/download/install.sh | sudo SULTRAKEY_VERSION=0.6.0 sh
 ```
 
 ### 1b. Server tanpa internet
@@ -86,7 +86,7 @@ ls -ld /etc/sultrakey
 
 Hasil yang benar:
 
-- `sultrakey --version` mencetak versinya, misalnya `sultrakey 0.5.0`.
+- `sultrakey --version` mencetak versinya, misalnya `sultrakey 0.6.0`.
 - Program ada di `/usr/bin/sultrakey`, jadi bisa dipakai pm2, systemd, dan semua user.
 - Folder kunci `/etc/sultrakey` ada, milik `root`, izin `drwxr-xr-x` (755).
 
@@ -173,8 +173,8 @@ sudo sultrakey setup
 Jalankan dari terminal sungguhan: SSH, Windows Terminal, atau PowerShell. Jendela bawaan Git Bash
 (mintty) tidak bisa menampilkan layar ini.
 
-`setup` menampilkan semua key yang masih kosong dalam satu layar. Daftar key ada di kiri, key yang
-dipilih ada di kanan.
+`setup` menampilkan semua key dalam satu layar. Daftar key ada di kiri, key yang dipilih ada di
+kanan. Key yang sudah terisi tampil redup dengan tanda `✓`. Kursor mulai di key kosong pertama.
 
 - Di bawah nama key ada tiga label:
 
@@ -188,7 +188,7 @@ dipilih ada di kanan.
   | `PLAIN` | Disimpan apa adanya (key `@plain`). |
 
 - Keterangan dari `.env.example` tampil redup di bawah label, diikuti `Default: ...` bila ada nilai
-  bawaan.
+  bawaan. Pada key yang sudah terisi tertulis `Example: ...`: itu contoh dari template, bukan nilai di `.env`.
 - Key biasa yang punya nilai bawaan: nilainya sudah tertulis di baris input. Enter = pakai, Backspace =
   ubah.
 - Key rahasia tidak pernah punya nilai bawaan: selalu diketik.
@@ -196,10 +196,15 @@ dipilih ada di kanan.
   server, lalu ketik `@/tmp/cert.pem`. Layar langsung memberi tahu apakah file itu ada
   (`✓ File found ...` atau `✗ File not found.`). Isi file tidak pernah ditampilkan. Setelah selesai,
   **hapus file itu**.
-- Enter menyimpan isian dan pindah ke key berikutnya. ↑↓ pindah key tanpa menyimpan ketikan.
-- Setelah key terakhir, muncul `Review before saving` berisi semua jawaban (key rahasia tampil
-  `********`). Pilih `[ Save ]` untuk menyimpan, atau `[ Back to edit ]` untuk mengubah jawaban.
-- Key yang dilewati tetap kosong, dan peringatan kuning `! Not filled: ...` menyebut namanya.
+- Enter menyimpan isian dan pindah ke key kosong berikutnya. ↑↓ pindah ke key mana pun tanpa
+  menyimpan ketikan.
+- Key yang sudah terisi: baris input kosong, nilai lama tidak ditampilkan. Enter = pertahankan nilai lama.
+  Ketik nilai baru = ganti.
+- Setelah key kosong terakhir, muncul `Review before saving` berisi semua jawaban (key rahasia tampil
+  `********`, key terisi yang tidak diganti tampil `(unchanged)`). Pilih `[ Save ]` untuk menyimpan,
+  atau `[ Back to edit ]` untuk mengubah jawaban.
+- Key kosong yang dilewati tetap kosong, dan peringatan kuning `! Not filled: ...` menyebut namanya.
+- Bila semua key sudah terisi, `setup` hanya mencetak `Every key already has a value.`
 - Esc atau Ctrl+C membatalkan. Tidak ada yang tersimpan sampai `[ Save ]` dipilih.
 - F1 menampilkan arti label, anotasi, dan semua tombol.
 
@@ -670,7 +675,8 @@ Lalu restart aplikasinya supaya password baru dipakai:
    sudo sultrakey setup
    ```
 
-   `setup` hanya menanyakan key yang masih kosong. Value lama tidak diubah.
+   `setup` mulai dari key yang masih kosong. Key lama tampil redup dengan tanda `✓` dan tidak diubah
+   kecuali Anda mengetik nilai baru.
    `check` juga mengingatkan bila template punya key baru:
    `! The template has keys that are not in .env yet: ...`
 3. Periksa, lalu restart aplikasi:

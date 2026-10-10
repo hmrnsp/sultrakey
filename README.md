@@ -46,7 +46,8 @@ then run `./sultrakey-<target> install` (use `sudo` on a server). From source: `
    defaults). The real `.env` must never go into git. Add `.env` and `.env.lock` to `.gitignore`. Do not
    use the pattern `.env*`, which would also ignore `.env.example`.
 2. `sultrakey init <app>` creates a key pair and the `.env` from the template.
-3. `sultrakey setup` asks for the variables that are still empty, then saves them encrypted.
+3. `sultrakey setup` asks for the variables that are still empty (filled ones are shown too, and can be
+   replaced), then saves them encrypted.
 4. `sultrakey check` makes sure every variable is filled and can be decrypted.
 5. `sultrakey run -- <command>` decrypts the values, puts them in the environment, then runs the
    application.
@@ -72,22 +73,28 @@ sultrakey run -- npm run dev
 
 ![The sultrakey setup screen](docs/Screenshot.png)
 
-In a terminal, `setup` shows every empty variable on one screen. The variable list is on the left, and
-the selected variable is on the right.
+In a terminal, `setup` shows every variable on one screen. The variable list is on the left, and the
+selected variable is on the right. Variables that already have a value show a dimmed `✓`;
+the screen starts at the first empty one.
 
 - Three labels sit under the variable name:
   - `SECRET` / `VISIBLE`: how it is typed (shown as stars and typed twice, or shown as is and typed once).
   - `REQUIRED` / `OPTIONAL`: must be filled, or may be left empty.
   - `ENCRYPTED` / `PLAIN`: how it is stored in `.env`.
 - The description (shown dim) comes from the comment above the variable in the template, followed by the
-  default value (`Default: ...`) if there is one. A variable without a comment shows
-  `No description for this key yet.`
+  default value (`Default: ...`) if there is one. On a variable that already has a value, it reads
+  `Example: ...`: it is the template's value, not the one saved in `.env`. A variable without a comment
+  shows `No description for this key yet.`
 - While you type `@file-path`, the screen tells you right away whether the file exists. The file's
   contents are never shown.
-- Enter keeps the value and moves to the next variable. After the last variable, a `Review before saving`
+- Enter keeps the value and moves to the next empty variable. After the last one, a `Review before saving`
   list appears. Secret values in that list always show as `********`.
+- A variable that already has a value starts with an empty line; its current value is never shown.
+  Enter on that empty line keeps the value; typing a new value replaces it. The review shows it as
+  `(unchanged)`.
 - `.env` is written only after `[ Save ]` is chosen. Esc or Ctrl+C cancels without changing anything.
-- Variables you skip (moving with ↑↓ without pressing Enter) stay empty.
+- Variables you skip (moving with ↑↓ without pressing Enter) stay as they were.
+- When every variable already has a value, `setup` only says so and does not open the screen.
 - F1 shows what the labels mean, the annotations (`@plain`, `@optional`, `@masking`), and every key
   binding. Scroll it with ↑↓; any other key closes it.
 
@@ -187,7 +194,7 @@ REDIS_HOST=enc:YWdlLWVuY3J5cHRpb24...
 | Command                                                | What it does                                                                                                                                                                                                                                                                                                                                  |
 | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `init <app> [--owner user[:group]]`                    | Creates the key if missing (never replaces one). Creates `.env` from the template, or takes over an old plain `.env` by encrypting its values.                                                                                                                                                                                              |
-| `setup`                                                | Brings `.env` in line with the template, encrypts plain values in secret variables, then shows every empty variable on one screen (secret variables show `*`). Without a terminal: reads `KEY=value` lines from stdin.                                                                                                                        |
+| `setup`                                                | Brings `.env` in line with the template, encrypts plain values in secret variables, then shows every variable on one screen, the empty ones to fill and the filled ones to keep or replace (secret variables show `*`). Without a terminal: reads `KEY=value` lines from stdin.                                                                 |
 | `set <KEY> [--stdin \| --file F]`                      | Replaces one value. Values are never taken from arguments.                                                                                                                                                                                                                                                                                    |
 | `list`                                                 | Shows variable names and their status; values are never shown. In a terminal: a colored table with `STORED` (`ENCRYPTED`/`PLAIN`) and `TYPED` (`SECRET`/`VISIBLE`) columns, plus a summary of the variables that still need `setup`. When piped to a script (`\| grep`, `> file`): the plain `KEY  STATUS` columns, as before.            |
 | `check`                                                | Verifies that every required variable is filled, every `enc:` can be decrypted, the key matches, and the key file's permissions are safe. In a terminal: a table of results per variable and for the key file. Problems are always printed as `✗ ...` and `Fix: ...` lines on stderr.                                                          |

@@ -1,8 +1,9 @@
-//! The `setup` form: every empty key on one screen, the list on the left and the selected
-//! key on the right. This file is the state and the keyboard; `view` draws it and
-//! `screen` owns the terminal. Answers follow the same rules as `prompt::ask`: secret keys
-//! are typed as stars and twice, `@path` reads a file, the template's value is prefilled
-//! on visible keys only.
+//! The `setup` form: every key on one screen, the list on the left and the selected key on
+//! the right. This file is the state and the keyboard; `view` draws it and `screen` owns
+//! the terminal. Answers follow the same rules as `prompt::ask`: secret keys are typed as
+//! stars and twice, `@path` reads a file, the template's value is prefilled on visible
+//! keys only. Keys that already have a value start on an empty line and keep that value
+//! unless a new one is entered; the value itself is never shown.
 
 mod screen;
 mod view;
@@ -35,8 +36,11 @@ pub struct Field {
     pub plain: bool,
     /// May be left empty (OPTIONAL) instead of required (REQUIRED).
     pub optional: bool,
-    /// The template's value, prefilled. Always `None` for masked keys.
+    /// The template's value, prefilled (on a filled key only shown, as an example). Always
+    /// `None` for masked keys.
     pub default: Option<String>,
+    /// Already has a value in `.env`: kept unless a new one is entered.
+    pub filled: bool,
 }
 
 /// What the screen is showing on top of the form.
@@ -113,7 +117,7 @@ impl Form {
             problem: None,
             probe: None,
         };
-        form.select(0);
+        form.select(form.next_empty(0).unwrap_or(0));
         form
     }
 
@@ -121,8 +125,18 @@ impl Form {
         &self.fields[self.selected]
     }
 
+    /// Keys answered on this screen or already filled in `.env`.
     pub fn answered(&self) -> usize {
-        self.answers.iter().filter(|a| a.is_some()).count()
+        self.fields
+            .iter()
+            .zip(&self.answers)
+            .filter(|(field, answer)| answer.is_some() || field.filled)
+            .count()
+    }
+
+    /// The first field from `from` on that is not filled.
+    fn next_empty(&self, from: usize) -> Option<usize> {
+        (from..self.fields.len()).find(|&i| !self.fields[i].filled)
     }
 
     /// The answers in field order; `None` stays empty.
@@ -282,7 +296,8 @@ impl Form {
     }
 
     /// Moves to field `index` (clamped). What was typed and not committed is dropped; the
-    /// input starts from the current answer, or the template's value.
+    /// input starts from the current answer, or the template's value (empty for a filled
+    /// key: its value is never shown).
     pub fn select(&mut self, index: usize) {
         self.selected = index.min(self.fields.len().saturating_sub(1));
         self.mode = Mode::Edit;
@@ -296,17 +311,19 @@ impl Form {
             Some(Reply::Value(_, Some(path))) => format!("@{}", path.display()),
             Some(Reply::Value(value, None)) => value.expose().to_string(),
             Some(Reply::Empty) => String::new(),
+            None if field.filled => String::new(),
             None => field.default.clone().unwrap_or_default(),
         };
         self.input.set(&start);
         self.probe_file();
     }
 
+    /// To the next key that is not filled, so Enter goes through the empty keys only; the
+    /// arrows still reach every key.
     fn advance(&mut self) {
-        if self.selected + 1 < self.fields.len() {
-            self.select(self.selected + 1);
-        } else {
-            self.review();
+        match self.next_empty(self.selected + 1) {
+            Some(next) => self.select(next),
+            None => self.review(),
         }
     }
 
@@ -339,6 +356,12 @@ impl Form {
         }
         if typed.is_empty() {
             if field.masked && self.answers[self.selected].is_some() {
+                return Commit::Done;
+            }
+            // Keeps the value in `.env`, dropping any replacement entered before.
+            if field.filled {
+                self.answers[self.selected] = None;
+                self.dirty = false;
                 return Commit::Done;
             }
             if field.optional {
@@ -416,7 +439,7 @@ impl Form {
         }
         let answered = self.answers[self.selected].is_some();
         let hint = match &field.default {
-            _ if field.masked && answered => {
+            _ if (field.masked && answered) || (field.filled && !answered) => {
                 "Already filled. Enter = keep, or type a new value to replace it.".to_string()
             }
             Some(default) if self.input.text() == default => {
@@ -617,6 +640,15 @@ mod tests {
             plain: false,
             optional,
             default: default.map(String::from),
+            filled: false,
+        }
+    }
+
+    /// A key that already has a value in `.env`.
+    pub fn filled(key: &str, masked: bool) -> Field {
+        Field {
+            filled: true,
+            ..field(key, masked, false, None)
         }
     }
 
@@ -874,6 +906,63 @@ mod tests {
         release.kind = KeyEventKind::Release;
         form.handle(Event::Key(release));
         assert!(form.input.is_empty());
+    }
+
+    #[test]
+    fn starts_at_the_first_empty_key_and_enter_skips_filled_keys() {
+        let mut form = Form::new(vec![
+            filled("HOST", false),
+            field("PORT", false, false, None),
+            filled("TOKEN", true),
+            field("USER", false, false, None),
+        ]);
+        assert_eq!(form.selected, 1);
+        assert_eq!(form.answered(), 2);
+        answer(&mut form, "5432");
+        assert_eq!(form.selected, 3, "the filled TOKEN is skipped");
+        answer(&mut form, "app");
+        assert!(matches!(form.mode, Mode::Review { .. }));
+        let answers = form.into_answers();
+        assert_eq!(answers[0], None, "kept as it is in .env");
+        assert_eq!(answers[2], None);
+    }
+
+    #[test]
+    fn a_filled_key_starts_empty_and_enter_keeps_its_value() {
+        let mut form = Form::new(vec![filled("HOST", false), field("A", false, false, None)]);
+        press(&mut form, KeyCode::Up);
+        assert_eq!(form.selected, 0);
+        assert!(form.input.is_empty(), "the value in .env is never shown");
+        assert!(matches!(form.status(), Status::Hint(h) if h.starts_with("Already filled")));
+        press(&mut form, KeyCode::Enter);
+        assert_eq!(form.answers[0], None);
+        assert_eq!(form.selected, 1);
+    }
+
+    #[test]
+    fn a_filled_key_can_be_replaced_and_clearing_goes_back_to_the_old_value() {
+        let mut form = Form::new(vec![filled("HOST", false), field("A", false, false, None)]);
+        press(&mut form, KeyCode::Up);
+        answer(&mut form, "db2");
+        assert_eq!(value(&form.answers[0]), "db2");
+
+        press(&mut form, KeyCode::Up);
+        assert_eq!(form.input.text(), "db2");
+        ctrl(&mut form, 'u');
+        press(&mut form, KeyCode::Enter);
+        assert_eq!(form.answers[0], None, "never cleared: the old value stays");
+    }
+
+    #[test]
+    fn a_filled_secret_is_replaced_by_typing_it_twice() {
+        let mut form = Form::new(vec![filled("TOKEN", true), field("A", false, false, None)]);
+        press(&mut form, KeyCode::Up);
+        answer(&mut form, "n3w");
+        assert_eq!(form.mode, Mode::Repeat);
+        answer(&mut form, "n3w");
+        assert_eq!(value(&form.answers[0]), "n3w");
+        press(&mut form, KeyCode::Up);
+        assert!(form.input.is_empty(), "a typed secret is never put back");
     }
 
     #[test]

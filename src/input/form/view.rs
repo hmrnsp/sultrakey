@@ -74,10 +74,10 @@ fn draw_list(frame: &mut Frame, form: &Form, area: Rect) {
     let area = pad(area);
     let [head, rows] = Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).areas(area);
     let count = format!("{}/{}", form.answered(), form.fields.len());
-    let gap = (head.width as usize).saturating_sub(width("Empty keys") + width(&count));
+    let gap = (head.width as usize).saturating_sub(width("Keys") + width(&count));
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::from("Empty keys").bold(),
+            Span::from("Keys").bold(),
             Span::from(" ".repeat(gap)),
             Span::from(count).dark_gray(),
         ])),
@@ -100,14 +100,19 @@ fn draw_list(frame: &mut Frame, form: &Form, area: Rect) {
             } else {
                 Span::from("  ")
             };
+            // Filled in .env and not replaced here: dimmed, and kept when saved.
+            let kept = field.filled && answer.is_none();
             let symbol = match answer {
                 Some(Reply::Value(..)) => Span::from("✓ ").green(),
                 Some(Reply::Empty) => Span::from("✓ ").dark_gray(),
+                None if kept => Span::from("✓ ").dark_gray(),
                 None if selected => Span::from("● ").cyan(),
                 None => Span::from("○ ").dark_gray(),
             };
             let key = if selected {
                 Span::from(field.key.clone()).bold()
+            } else if kept {
+                Span::from(field.key.clone()).dark_gray()
             } else {
                 Span::from(field.key.clone())
             };
@@ -248,9 +253,15 @@ fn help_text(field: &Field) -> Text<'static> {
             .collect()
     };
     if let Some(default) = &field.default {
+        // A filled key does not start from it, and its own value is not this one.
+        let label = if field.filled {
+            "Example: "
+        } else {
+            "Default: "
+        };
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::from("Default: ").dark_gray(),
+            Span::from(label).dark_gray(),
             Span::from(printable(default)),
         ]));
     }
@@ -340,6 +351,7 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
         .zip(&form.answers)
         .map(|(field, answer)| {
             let shown = match answer {
+                None if field.filled => Span::from("(unchanged)").dark_gray(),
                 None if field.optional => Span::from("(not filled)").dark_gray(),
                 None => Span::from("(not filled)").yellow(),
                 Some(Reply::Empty) => Span::from("(empty)").dark_gray(),
@@ -362,7 +374,7 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
         .fields
         .iter()
         .zip(&form.answers)
-        .filter(|(field, answer)| answer.is_none() && !field.optional)
+        .filter(|(field, answer)| answer.is_none() && !field.optional && !field.filled)
         .map(|(field, _)| field.key.as_str())
         .collect();
 
@@ -495,7 +507,9 @@ pub(super) fn help_lines() -> Vec<Line<'static>> {
         more("→ SECRET, OPTIONAL, ENCRYPTED"),
         Line::from(""),
         section("Keys"),
-        row("Enter", "keep the value, go to the next key"),
+        row("Enter", "keep the value, go to the next empty key"),
+        more("On a filled key, an empty line keeps the value"),
+        more("already in .env (it is never shown)."),
         row(
             "↑ ↓  Tab",
             "move between keys; typing without Enter is dropped",
@@ -594,7 +608,7 @@ mod tests {
     use ratatui::backend::TestBackend;
     use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 
-    use super::super::tests::field;
+    use super::super::tests::{field, filled};
     use super::*;
 
     fn screen(form: &Form, width: u16, height: u16) -> String {
@@ -789,6 +803,53 @@ mod tests {
         let narrow = screen(&form, 40, 12);
         assert!(narrow.contains("discarded."), "wrapped, not cut: {narrow}");
         assert!(narrow.contains("go back"), "{narrow}");
+    }
+
+    #[test]
+    fn filled_keys_are_listed_and_kept_in_the_review() {
+        let mut form = Form::new(vec![
+            filled("DB_HOST", false),
+            field("DB_PASSWORD", true, false, None),
+            field("REDIS_HOST", false, false, None),
+        ]);
+        let text = screen(&form, 80, 24);
+        assert!(text.contains("Keys"), "{text}");
+        assert!(text.contains("1/3"), "{text}");
+        assert!(text.contains("✓ DB_HOST"), "{text}");
+        assert!(
+            text.contains("▸ ● DB_PASSWORD"),
+            "starts at the empty key: {text}"
+        );
+
+        form.mode = Mode::Review {
+            save: true,
+            scroll: 0,
+        };
+        let review = screen(&form, 80, 24);
+        assert!(review.contains("DB_HOST      (unchanged)"), "{review}");
+        assert!(
+            review.contains("Not filled: DB_PASSWORD, REDIS_HOST."),
+            "a filled key is not missing: {review}"
+        );
+    }
+
+    #[test]
+    fn a_filled_key_shows_the_default_as_an_example_only() {
+        let mut host = filled("DB_HOST", false);
+        host.default = Some("localhost".into());
+        let mut form = Form::new(vec![host, field("PORT", false, false, None)]);
+        form.select(0);
+        let text = screen(&form, 80, 24);
+        assert!(text.contains("Example: localhost"), "{text}");
+        assert!(!text.contains("Default: localhost"), "{text}");
+        assert!(!text.contains("Value › localhost"), "not prefilled: {text}");
+        assert!(text.contains("Already filled"), "{text}");
+
+        form.handle(Event::Key(KeyEvent::new(
+            KeyCode::Enter,
+            KeyModifiers::NONE,
+        )));
+        assert_eq!(form.answers[0], None, "Enter keeps the value in .env");
     }
 
     #[test]

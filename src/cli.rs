@@ -52,7 +52,7 @@ pub enum Command {
         owner: Option<String>,
     },
 
-    /// Bring .env in line with the template, then ask for the keys that are still empty
+    /// Bring .env in line with the template, then show every key: fill the empty ones, keep or replace the rest
     Setup,
 
     /// Replace the value of one key (from a prompt, --stdin, or --file)
