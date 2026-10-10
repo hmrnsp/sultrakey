@@ -50,8 +50,8 @@ pub enum Mode {
     Review { save: bool, scroll: u16 },
     /// "Cancel without saving?"
     ConfirmCancel { back: Back },
-    /// The legend of labels and keys.
-    Help { back: Back },
+    /// The legend of labels, annotations and keys, scrolled by `scroll` rows.
+    Help { back: Back, scroll: u16 },
 }
 
 /// Where a popup returns to.
@@ -159,8 +159,19 @@ impl Form {
                 }
                 _ => Step::Continue,
             },
-            Mode::Help { back } => {
-                self.mode = back.mode();
+            Mode::Help { back, scroll } => {
+                let last = view::help_lines().len() as u16;
+                let scroll = match key.code {
+                    KeyCode::Up => scroll.saturating_sub(1),
+                    KeyCode::Down => scroll.saturating_add(1).min(last),
+                    KeyCode::PageUp => scroll.saturating_sub(10),
+                    KeyCode::PageDown => scroll.saturating_add(10).min(last),
+                    _ => {
+                        self.mode = back.mode();
+                        return Step::Continue;
+                    }
+                };
+                self.mode = Mode::Help { back, scroll };
                 Step::Continue
             }
         }
@@ -169,7 +180,12 @@ impl Form {
     fn edit_key(&mut self, key: KeyEvent, ctrl: bool, alt: bool) -> Step {
         match key.code {
             KeyCode::Esc => self.mode = Mode::ConfirmCancel { back: Back::Edit },
-            KeyCode::F(1) => self.mode = Mode::Help { back: Back::Edit },
+            KeyCode::F(1) => {
+                self.mode = Mode::Help {
+                    back: Back::Edit,
+                    scroll: 0,
+                }
+            }
             KeyCode::Enter => {
                 if self.commit() == Commit::Done {
                     self.advance();
@@ -220,7 +236,12 @@ impl Form {
                 };
             }
             KeyCode::Esc => self.mode = Mode::ConfirmCancel { back: Back::Review },
-            KeyCode::F(1) => self.mode = Mode::Help { back: Back::Review },
+            KeyCode::F(1) => {
+                self.mode = Mode::Help {
+                    back: Back::Review,
+                    scroll: 0,
+                }
+            }
             _ => {}
         }
         Step::Continue
@@ -820,6 +841,30 @@ mod tests {
         assert_eq!(form.input.text(), "keep");
         press(&mut form, KeyCode::Esc);
         assert_eq!(press(&mut form, KeyCode::Char('y')), Step::Cancel);
+    }
+
+    #[test]
+    fn help_scrolls_with_arrows_and_closes_on_any_other_key() {
+        let mut form = Form::new(vec![field("A", false, false, None)]);
+        typed(&mut form, "keep");
+        press(&mut form, KeyCode::F(1));
+        press(&mut form, KeyCode::Down);
+        press(&mut form, KeyCode::Down);
+        press(&mut form, KeyCode::Up);
+        assert_eq!(
+            form.mode,
+            Mode::Help {
+                back: Back::Edit,
+                scroll: 1
+            }
+        );
+        press(&mut form, KeyCode::Char('x'));
+        assert_eq!(form.mode, Mode::Edit);
+        assert_eq!(
+            form.input.text(),
+            "keep",
+            "the key that closes help is not typed"
+        );
     }
 
     #[test]

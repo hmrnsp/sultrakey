@@ -66,7 +66,7 @@ pub fn draw(frame: &mut Frame, form: &Form) {
         Mode::Edit | Mode::Repeat => {}
         Mode::Review { save, scroll } => draw_review(frame, form, save, scroll),
         Mode::ConfirmCancel { .. } => draw_confirm(frame),
-        Mode::Help { .. } => draw_help(frame),
+        Mode::Help { scroll, .. } => draw_help(frame, scroll),
     }
 }
 
@@ -127,10 +127,31 @@ fn draw_detail(frame: &mut Frame, form: &Form, area: Rect) {
     let field = form.field();
     let input_rows = if field.masked { 2 } else { 1 };
     let help_text = help_text(field);
-    // The input right under the help; any room left stays at the bottom.
-    let fixed = 3 + 1 + input_rows + 1 + 2;
+    // A problem or the `@file` check sits right under the input, where the eye is; a hint
+    // about the keys sits at the very bottom, out of the way.
+    let status = status_line(&form.status());
+    let (notice, hint) = match form.status() {
+        Status::Hint(_) => (None, Some(status)),
+        _ => (Some(status), None),
+    };
+    let hint_rows = hint.as_ref().map_or(0, |line| {
+        wrapped_rows(&Text::from(line.clone()), area.width)
+    });
+    // The input right under the help; any room left stays above the hint.
+    let fixed = 3 + 1 + input_rows + 1 + 2 + hint_rows;
     let help_rows = wrapped_rows(&help_text, area.width).min(area.height.saturating_sub(fixed));
-    let [title, labels, rule1, help, rule2, input, _, status, _] = Layout::vertical([
+    let [
+        title,
+        labels,
+        rule1,
+        help,
+        rule2,
+        input,
+        _,
+        notice_area,
+        _,
+        hint_area,
+    ] = Layout::vertical([
         Constraint::Length(1),
         Constraint::Length(1),
         Constraint::Length(1),
@@ -140,6 +161,7 @@ fn draw_detail(frame: &mut Frame, form: &Form, area: Rect) {
         Constraint::Length(1),
         Constraint::Length(2),
         Constraint::Min(0),
+        Constraint::Length(hint_rows),
     ])
     .areas(area);
 
@@ -180,10 +202,11 @@ fn draw_detail(frame: &mut Frame, form: &Form, area: Rect) {
     } else {
         draw_input(frame, input, "Value › ", &form.input, false, editing);
     }
-    frame.render_widget(
-        Paragraph::new(status_line(&form.status())).wrap(Wrap { trim: true }),
-        status,
-    );
+    for (line, area) in [(notice, notice_area), (hint, hint_area)] {
+        if let Some(line) = line {
+            frame.render_widget(Paragraph::new(line).wrap(Wrap { trim: true }), area);
+        }
+    }
 }
 
 fn label_line(field: &Field) -> Line<'static> {
@@ -216,23 +239,18 @@ fn label_line(field: &Field) -> Line<'static> {
 
 fn help_text(field: &Field) -> Text<'static> {
     let mut lines: Vec<Line> = if field.help.is_empty() {
-        vec![
-            Line::from("No description for this key yet.").dark_gray(),
-            Line::from("Add one in .env.example, for example:").dark_gray(),
-            Line::from("  # Short description").dark_gray(),
-            Line::from(format!("  {}=", field.key)).dark_gray(),
-        ]
+        vec![Line::from("No description for this key yet.").dark_gray()]
     } else {
         field
             .help
             .iter()
-            .map(|line| Line::from(printable(line)))
+            .map(|line| Line::from(printable(line)).dark_gray())
             .collect()
     };
     if let Some(default) = &field.default {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::from("Template default: ").dark_gray(),
+            Span::from("Default: ").dark_gray(),
             Span::from(printable(default)),
         ]));
     }
@@ -301,7 +319,7 @@ fn footer_line(mode: Mode) -> Line<'static> {
             ("Esc", "cancel"),
         ],
         Mode::ConfirmCancel { .. } => &[("y", "yes, cancel"), ("n", "go back")],
-        Mode::Help { .. } => &[("any key", "close help")],
+        Mode::Help { .. } => &[("↑↓", "scroll"), ("any other key", "close help")],
     };
     let mut spans = vec![Span::from(" ")];
     for (i, (key, what)) in keys.iter().enumerate() {
@@ -349,9 +367,20 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
         .collect();
 
     let area = frame.area();
-    let warn_rows = if missing.is_empty() { 0 } else { 2 };
+    let popup_width = area.width.saturating_sub(4).min(76);
+    let warning = (!missing.is_empty()).then(|| {
+        Line::from(format!(
+            "! Not filled: {}. They stay empty; fill them later with sultrakey setup.",
+            missing.join(", ")
+        ))
+        .yellow()
+    });
+    // As many rows as the warning wraps to, so no key name is cut off.
+    let warn_rows = warning.as_ref().map_or(0, |line| {
+        wrapped_rows(&Text::from(line.clone()), popup_width.saturating_sub(4))
+    });
     let height = rows.len() as u16 + 4 + warn_rows;
-    let popup = centered(area, area.width.saturating_sub(4).min(76), height);
+    let popup = centered(area, popup_width, height);
     frame.render_widget(Clear, popup);
     let block = popup_block(" Review before saving ");
     let inner = pad(block.inner(popup));
@@ -366,16 +395,8 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
     .areas(inner);
     let scroll = scroll.min((rows.len() as u16).saturating_sub(list.height));
     frame.render_widget(Paragraph::new(rows).scroll((scroll, 0)), list);
-    if !missing.is_empty() {
-        frame.render_widget(
-            Paragraph::new(format!(
-                "! Not filled: {}. They stay empty; fill them later with sultrakey setup.",
-                missing.join(", ")
-            ))
-            .yellow()
-            .wrap(Wrap { trim: true }),
-            warn,
-        );
+    if let Some(warning) = warning {
+        frame.render_widget(Paragraph::new(warning).wrap(Wrap { trim: true }), warn);
     }
     let button = |text: &'static str, on: bool| {
         if on {
@@ -402,27 +423,32 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
 }
 
 fn draw_confirm(frame: &mut Frame) {
-    let popup = centered(frame.area(), 46, 6);
+    let title = " Cancel without saving? ";
+    let text = Text::from(vec![
+        Line::from("Everything entered on this screen is discarded."),
+        Line::from(""),
+        Line::from(vec![
+            Span::from("y").cyan().bold(),
+            Span::from(" yes, cancel      "),
+            Span::from("n").cyan().bold(),
+            Span::from(" go back"),
+        ]),
+    ]);
+    // As wide as the text needs (plus border and padding); narrow terminals wrap it.
+    let area = frame.area();
+    let widest = text.width().max(width(title)).min(usize::from(u16::MAX)) as u16;
+    let popup_width = (widest + 4).min(area.width);
+    let rows = wrapped_rows(&text, popup_width.saturating_sub(4));
+    let popup = centered(area, popup_width, rows + 2);
     frame.render_widget(Clear, popup);
-    let block = popup_block(" Cancel without saving? ");
+    let block = popup_block(title);
     let inner = pad(block.inner(popup));
     frame.render_widget(block, popup);
-    frame.render_widget(
-        Paragraph::new(vec![
-            Line::from("Everything entered on this screen is discarded."),
-            Line::from(""),
-            Line::from(vec![
-                Span::from("y").cyan().bold(),
-                Span::from(" yes, cancel      "),
-                Span::from("n").cyan().bold(),
-                Span::from(" go back"),
-            ]),
-        ]),
-        inner,
-    );
+    frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), inner);
 }
 
-fn draw_help(frame: &mut Frame) {
+/// The legend shown by F1: labels, the annotations behind them, keys, and `@file`.
+pub(super) fn help_lines() -> Vec<Line<'static>> {
     let section = |title: &'static str| Line::from(title).bold();
     let row = |key: &'static str, what: &'static str| {
         Line::from(vec![
@@ -430,14 +456,43 @@ fn draw_help(frame: &mut Frame) {
             Span::from(what),
         ])
     };
-    let lines = vec![
-        section("Label"),
+    let more = |what: &'static str| Line::from(format!("  {:<14}{what}", ""));
+    let example = |text: &'static str| Line::from(format!("  {:<14}{text}", "")).dark_gray();
+    vec![
+        section("Labels"),
         row("SECRET", "typed as stars, twice"),
         row("VISIBLE", "typed visibly, once"),
         row("REQUIRED", "must be filled before the application can run"),
         row("OPTIONAL", "may be left empty: clear it, then press Enter"),
         row("ENCRYPTED", "stored encrypted in .env"),
-        row("PLAIN", "stored as is (# @plain)"),
+        row("PLAIN", "stored as is, readable in .env"),
+        Line::from(""),
+        section("Annotations"),
+        more("Comment lines right above a key in .env.example"),
+        more("set its labels. Several may share one line, for"),
+        more("example: # @plain @optional"),
+        row("# @plain", "store the value as is, not encrypted (PLAIN)."),
+        more("For values that are not secret: a port, a log level."),
+        row(
+            "# @optional",
+            "the key may stay empty (OPTIONAL); the application",
+        ),
+        more("then gets the variable with an empty value."),
+        row(
+            "# @masking",
+            "type as stars, twice (SECRET), for a secret whose",
+        ),
+        more("name looks harmless, such as DATABASE_URL."),
+        row(
+            "no annotation",
+            "encrypted and required. Typed as stars when the",
+        ),
+        more("name has PASSWORD, PASS, PWD, SECRET, TOKEN, AUTH,"),
+        more("or SALT (REDIS_PASSWORD); otherwise visible."),
+        row("Example", "# Redis password; leave empty if there is none"),
+        example("# @optional"),
+        example("REDIS_PASSWORD="),
+        more("→ SECRET, OPTIONAL, ENCRYPTED"),
         Line::from(""),
         section("Keys"),
         row("Enter", "keep the value, go to the next key"),
@@ -453,16 +508,30 @@ fn draw_help(frame: &mut Frame) {
         section("Fill from a file"),
         row(
             "@file-path",
-            "value = the CONTENTS of that file; the path is not saved",
+            "value = the file's CONTENTS; the path is not saved",
         ),
         row("@@text", "a value that really starts with @"),
-    ];
-    let popup = centered(frame.area(), 68, lines.len() as u16 + 4);
+    ]
+}
+
+fn draw_help(frame: &mut Frame, scroll: u16) {
+    let lines = help_lines();
+    let rows = lines.len() as u16;
+    // Above the footer, which says how to scroll and close.
+    let area = frame.area();
+    let above_footer = Rect::new(area.x, area.y, area.width, area.height.saturating_sub(1));
+    let popup = centered(above_footer, 72, rows + 2);
     frame.render_widget(Clear, popup);
-    let block = popup_block(" Help ");
+    let visible = popup.height.saturating_sub(2);
+    let block = if rows > visible {
+        popup_block(" Help (↑↓ to scroll) ")
+    } else {
+        popup_block(" Help ")
+    };
     let inner = pad(block.inner(popup));
     frame.render_widget(block, popup);
-    frame.render_widget(Paragraph::new(lines), inner);
+    let scroll = scroll.min(rows.saturating_sub(inner.height));
+    frame.render_widget(Paragraph::new(lines).scroll((scroll, 0)), inner);
 }
 
 fn popup_block(title: &'static str) -> Block<'static> {
@@ -576,13 +645,13 @@ mod tests {
         );
         assert!(text.contains("ENCRYPTED"), "{text}");
         assert!(text.contains("PostgreSQL server address."), "{text}");
-        assert!(text.contains("Template default: localhost"), "{text}");
+        assert!(text.contains("Default: localhost"), "{text}");
         assert!(text.contains("Value › localhost"), "{text}");
         assert!(text.contains("0/3"), "{text}");
     }
 
     #[test]
-    fn a_key_without_help_explains_how_to_add_it() {
+    fn a_key_without_help_says_so_in_one_line() {
         let mut form = sample();
         form.select(2);
         let text = screen(&form, 80, 24);
@@ -590,8 +659,8 @@ mod tests {
             text.contains("OPTIONAL") && text.contains("PLAIN"),
             "{text}"
         );
-        assert!(text.contains("No description"), "{text}");
-        assert!(text.contains("REDIS_HOST="), "{text}");
+        assert!(text.contains("No description for this key yet."), "{text}");
+        assert!(!text.contains("Add one in .env.example"), "{text}");
     }
 
     #[test]
@@ -620,6 +689,106 @@ mod tests {
         assert!(review.contains("DB_HOST      localhost"), "{review}");
         assert!(review.contains("(empty)"), "{review}");
         assert!(!review.contains("pw"), "{review}");
+    }
+
+    #[test]
+    fn help_explains_the_annotations_and_scrolls() {
+        let mut form = sample();
+        form.mode = Mode::Help {
+            back: super::super::Back::Edit,
+            scroll: 0,
+        };
+        let tall = screen(&form, 80, 60);
+        for word in [
+            "# @plain",
+            "# @optional",
+            "# @masking",
+            "no annotation",
+            "@file-path",
+        ] {
+            assert!(tall.contains(word), "{word}: {tall}");
+        }
+        assert!(!tall.contains("to scroll"), "{tall}");
+
+        let short = screen(&form, 80, 24);
+        assert!(short.contains("Help (↑↓ to scroll)"), "{short}");
+        assert!(
+            short.contains("Labels") && !short.contains("@@text"),
+            "{short}"
+        );
+        form.mode = Mode::Help {
+            back: super::super::Back::Edit,
+            scroll: 99,
+        };
+        let end = screen(&form, 80, 24);
+        assert!(end.contains("@@text") && !end.contains("Labels"), "{end}");
+    }
+
+    /// The row (from the top) holding `needle`.
+    fn row_of(text: &str, needle: &str) -> Option<usize> {
+        text.lines().position(|line| line.contains(needle))
+    }
+
+    #[test]
+    fn key_hints_sit_at_the_bottom_and_problems_under_the_input() {
+        let mut form = sample();
+        let text = screen(&form, 80, 24);
+        // Row 21 is the last one inside the frame: 22 is its border, 23 the footer.
+        assert_eq!(row_of(&text, "Enter = use localhost"), Some(21), "{text}");
+
+        form.handle(Event::Key(KeyEvent::new(
+            KeyCode::Char('u'),
+            KeyModifiers::CONTROL,
+        )));
+        form.handle(Event::Key(KeyEvent::new(
+            KeyCode::Enter,
+            KeyModifiers::NONE,
+        )));
+        let text = screen(&form, 80, 24);
+        let input = row_of(&text, "Value ›").unwrap();
+        assert_eq!(
+            row_of(&text, "! DB_HOST is required."),
+            Some(input + 2),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn a_long_list_of_unfilled_keys_is_not_cut_off() {
+        let keys: Vec<String> = (1..=12)
+            .map(|i| format!("SOME_LONG_KEY_NAME_{i:02}"))
+            .collect();
+        let mut form = Form::new(keys.iter().map(|k| field(k, false, false, None)).collect());
+        form.mode = Mode::Review {
+            save: true,
+            scroll: 0,
+        };
+        let text = screen(&form, 80, 40);
+        assert!(text.contains("SOME_LONG_KEY_NAME_12."), "{text}");
+        assert!(
+            text.lines().any(|line| line.contains("│ setup.")),
+            "the end of the wrapped warning: {text}"
+        );
+    }
+
+    #[test]
+    fn the_cancel_question_is_never_cut_off() {
+        let mut form = sample();
+        form.mode = Mode::ConfirmCancel {
+            back: super::super::Back::Edit,
+        };
+        let wide = screen(&form, 80, 24);
+        assert!(
+            wide.contains("Everything entered on this screen is discarded."),
+            "{wide}"
+        );
+        assert!(
+            wide.contains("y yes, cancel") && wide.contains("n go back"),
+            "{wide}"
+        );
+        let narrow = screen(&form, 40, 12);
+        assert!(narrow.contains("discarded."), "wrapped, not cut: {narrow}");
+        assert!(narrow.contains("go back"), "{narrow}");
     }
 
     #[test]
