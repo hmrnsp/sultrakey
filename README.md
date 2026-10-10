@@ -1,19 +1,19 @@
 # sultrakey
 
-File `.env` dengan value terenkripsi, dan peluncur yang menjalankan aplikasi bahasa apa pun
-(Node.js, Spring Boot, Go, Rust, ...) dengan value yang sudah dibuka di environment.
+`.env` files with encrypted values, and a launcher that runs an application in any language
+(Node.js, Spring Boot, Go, Rust, ...) with the decrypted values in its environment.
 
-- Satu binary statis, tanpa dependensi. Jalan di Rocky Linux 8/9, Ubuntu, dan CentOS 7.
-  Windows dan macOS untuk laptop developer.
-- Enkripsi memakai [age](https://age-encryption.org) X25519, tanpa kriptografi buatan sendiri.
-  Value bisa dibuka darurat dengan CLI `age` resmi.
-- Aplikasi tidak perlu diubah: aplikasi membaca environment variable seperti biasa.
+- One static binary, no dependencies. Runs on Rocky Linux 8/9, Ubuntu, and CentOS 7, plus
+  Windows and macOS for developer laptops.
+- Encryption uses [age](https://age-encryption.org) X25519, with no home-made cryptography.
+  Values can be decrypted in an emergency with the official `age` CLI.
+- Applications need no changes: they read environment variables as usual.
 
-Panduan untuk tim infra (server, pm2, systemd, Docker): [docs/runbook-infra.md](docs/runbook-infra.md).
+Guide for the infra team (servers, pm2, systemd, Docker): [docs/runbook-infra.md](docs/runbook-infra.md).
 
-## Pasang
+## Install
 
-Windows (PowerShell, tanpa Administrator):
+Windows (PowerShell, no Administrator needed):
 
 ```powershell
 powershell -ExecutionPolicy Bypass -c "irm https://github.com/hmrnsp/sultrakey/releases/latest/download/install.ps1 | iex"
@@ -26,35 +26,51 @@ curl -fsSL https://github.com/hmrnsp/sultrakey/releases/latest/download/install.
 curl -fsSL https://github.com/hmrnsp/sultrakey/releases/latest/download/install.sh | sudo sh   # server → /usr/bin
 ```
 
-Manual: unduh binary dari [halaman rilis](https://github.com/hmrnsp/sultrakey/releases/latest), lalu
-jalankan `./sultrakey-<target> install` (`sudo` di server). Dari source: `cargo install --path .`.
+By hand: download the binary from the [releases page](https://github.com/hmrnsp/sultrakey/releases/latest),
+then run `./sultrakey-<target> install` (`sudo` on a server). From source: `cargo install --path .`.
 
-| Sistem | Lokasi pasang |
+| System | Install location |
 | --- | --- |
-| Linux/macOS dengan sudo | `/usr/bin/sultrakey` (+ folder kunci `/etc/sultrakey`) |
-| Linux/macOS tanpa sudo | `~/.local/bin/sultrakey` |
-| Windows | `%LOCALAPPDATA%\Programs\sultrakey\sultrakey.exe` (ditambahkan ke PATH user) |
+| Linux/macOS with sudo | `/usr/bin/sultrakey` (+ key folder `/etc/sultrakey`) |
+| Linux/macOS without sudo | `~/.local/bin/sultrakey` |
+| Windows | `%LOCALAPPDATA%\Programs\sultrakey\sultrakey.exe` (added to the user PATH) |
 
-## Alur singkat
+## Upgrading to 0.5
 
-1. Repo aplikasi berisi `.env.example` (semua key, value kosong atau default yang bukan rahasia).
-   `.env` asli tidak pernah masuk git (tambahkan `.env` ke `.gitignore`; jangan pola `.env*`, karena
-   `.env.example` ikut tidak masuk git).
-2. `sultrakey init <app>` membuat keypair dan `.env` dari template.
-3. `sultrakey setup` menanyakan key yang masih kosong, lalu menyimpannya terenkripsi.
-4. `sultrakey check` memastikan semua key terisi dan bisa dibuka.
-5. `sultrakey run -- <perintah>` membuka value, mengisinya ke environment, lalu menjalankan aplikasi.
+Version 0.5 changes two things that can break an existing setup:
 
-Di laptop Windows:
+1. **`@masked` is renamed to `@masking`.** Replace `# @masked` with `# @masking` in **both**
+   `.env.example` and `.env` **before** updating. A file that still says `@masked` is refused, so
+   `check` and `run` fail and the application does not start. The error names the file and line:
+
+   ```
+   ✗ .env line 7: annotation '@masked' was renamed to @masking; replace it in this file.
+   ```
+
+2. **All output is now in English.** For example `Solusi:` is now `Fix:`, and `list` shows
+   `encrypted` instead of `terenkripsi`. Scripts that search for the old text need updating.
+
+## Quick start
+
+1. The application repo holds `.env.example` (every key, with empty values or non-secret defaults).
+   The real `.env` never goes into git (add `.env` to `.gitignore`; not the pattern `.env*`, which also
+   keeps `.env.example` out of git).
+2. `sultrakey init <app>` creates a key pair and the `.env` from the template.
+3. `sultrakey setup` asks for the keys that are still empty, then saves them encrypted.
+4. `sultrakey check` makes sure every key is filled and can be decrypted.
+5. `sultrakey run -- <command>` decrypts the values, puts them in the environment, then runs the
+   application.
+
+On a Windows laptop:
 
 ```powershell
-cd C:\proyek\api
+cd C:\projects\api
 sultrakey init api
 sultrakey setup
 sultrakey run -- npm run dev
 ```
 
-Di Linux/macOS, membuat kunci butuh sudo, termasuk di laptop. Kunci selalu disimpan di `/etc/sultrakey/`:
+On Linux/macOS, creating a key needs sudo, laptops included. Keys always live in `/etc/sultrakey/`:
 
 ```sh
 sudo sultrakey init api --owner $USER
@@ -62,212 +78,214 @@ sultrakey setup
 sultrakey run -- npm run dev
 ```
 
-## Layar `setup`
+## The `setup` screen
 
-Di terminal, `setup` menampilkan semua key yang kosong dalam satu layar. Daftar key ada di kiri,
-key yang dipilih di kanan.
+In a terminal, `setup` shows every empty key on one screen. The key list is on the left, the
+selected key on the right.
 
-- Tiga label di bawah nama key: `RAHASIA`/`TERLIHAT` (cara mengetik), `WAJIB`/`OPSIONAL`, dan
-  `TERENKRIPSI`/`POLOS` (cara disimpan).
-- Keterangan diambil dari komentar di atas key dalam template, lalu nilai bawaan bila ada.
-- Saat mengetik `@lokasi-file`, layar langsung memberi tahu apakah file itu ada. Isi file tidak
-  pernah ditampilkan.
-- Enter menyimpan isian dan pindah ke key berikutnya. Setelah key terakhir, muncul daftar untuk
-  diperiksa sebelum disimpan. Value rahasia di daftar itu selalu tampil `********`.
-- `.env` baru ditulis setelah memilih Simpan. Esc atau Ctrl+C membatalkan tanpa mengubah apa pun.
-- Key yang dilewati (pindah dengan ↑↓ tanpa Enter) tetap kosong.
-- F1 menampilkan arti label dan semua tombol.
+- Three labels under the key name: `SECRET`/`VISIBLE` (how it is typed), `REQUIRED`/`OPTIONAL`, and
+  `ENCRYPTED`/`PLAIN` (how it is stored).
+- The description comes from the comment above the key in the template, followed by the default
+  value, if any.
+- While you type `@file-path`, the screen tells you right away whether the file exists. The file's
+  contents are never shown.
+- Enter keeps the value and moves to the next key. After the last key, a list appears to review
+  before saving. Secret values in that list always show as `********`.
+- `.env` is written only after choosing Save. Esc or Ctrl+C cancels without changing anything.
+- Keys you skip (moving with ↑↓ without Enter) stay empty.
+- F1 shows what the labels mean and every key binding.
 
 ## Template
 
 ```env
-# Port aplikasi
+# Application port
 # @plain
 PORT=8899
-# Host Redis, tanpa http:// dan port. Contoh: 10.10.1.20
+# Redis host, without http:// and port. Example: 10.10.1.20
 REDIS_HOST=
-# Password dari admin Redis. Kosongkan bila tanpa password.
+# Password from the Redis admin. Leave empty if there is none.
 # @optional
 REDIS_PASSWORD=
-# Sertifikat SSL dari tim jaringan (isi dari file)
+# SSL certificate from the network team (fill from a file)
 SSL_CERT=
 ```
 
-- Komentar tepat di atas key menjadi teks bantuan saat `setup`.
-- Value di template menjadi nilai bawaan saat `setup`:
-  - Key biasa: nilai bawaan sudah tertulis di baris input. Enter = pakai, Backspace = ganti. Hapus semua
-    lalu Enter: key `@optional` jadi kosong, key wajib ditolak sampai diisi. Tanpa terminal, key biasa yang
-    kosong dan tidak dikirim langsung diisi nilai bawaan.
-  - Key rahasia: nilai di template **diabaikan** dan wajib diketik, juga tanpa terminal. Jadi password
-    contoh seperti `DB_PASSWORD=secret` tidak pernah tersimpan.
-  - **Kosongkan value contoh di key biasa** (misalnya `SMTP_HOST=smtp.example.com`). Kalau tidak, value
-    contoh itu tersimpan sebagai value sungguhan dan `check` tetap lolos.
-- Value yang panjangnya lebih dari satu baris diisi dari file: saat `setup` ketik `@/lokasi/file`,
-  atau pakai `sultrakey set KEY --file <lokasi>`. Ketik `@@` untuk value yang memang diawali `@`.
-- Urutan dan komentar template ikut disalin ke `.env`, bersama anotasinya. Karena itu `check` dan `run`
-  tidak butuh template.
+- The comment right above a key becomes its help text in `setup`.
+- A value in the template becomes the default in `setup`:
+  - Visible keys: the default is already on the input line. Enter = use it, Backspace = change it.
+    Clear it all, then Enter: an `@optional` key becomes empty, a required key is refused until
+    filled. Without a terminal, empty visible keys that are not sent get the default.
+  - Secret keys: the template's value is **ignored** and must be typed, also without a terminal. So an
+    example password such as `DB_PASSWORD=secret` is never saved.
+  - **Clear example values on visible keys** (for example `SMTP_HOST=smtp.example.com`). Otherwise the
+    example is saved as the real value and `check` still passes.
+- Values longer than one line are filled from a file: in `setup` type `@/path/to/file`, or use
+  `sultrakey set KEY --file <path>`. Type `@@` for a value that really starts with `@`.
+- The template's order and comments are copied into `.env`, annotations included. That is why `check`
+  and `run` do not need the template.
 
-### Anotasi (tag)
+### Annotations (tags)
 
-Anotasi ditulis sebagai komentar di atas key, di blok komentar yang menempel ke key itu (tanpa baris
-kosong di antaranya). Tanpa anotasi, key dianggap **rahasia dan wajib**: dienkripsi, dan harus terisi
-sebelum `run`.
+Annotations are comments above a key, in the comment block attached to it (no blank line in between).
+Without annotations a key is **secret and required**: encrypted, and it must be filled before `run`.
 
-| Anotasi | Fungsi | Tanpa anotasi ini |
+| Annotation | Effect | Without it |
 | --- | --- | --- |
-| `# @plain` | Value disimpan **polos**, tidak dienkripsi. Untuk value yang bukan rahasia, misalnya port atau level log. | Value dienkripsi (`enc:...`). Value polos yang diketik manual di key ini membuat `check` dan `run` gagal sampai `setup` mengenkripsinya. |
-| `# @optional` | Key **boleh kosong**. `check` dan `run` tetap jalan, dan aplikasi menerima variabel itu dengan isi kosong. Saat `setup`, hapus semua isi baris lalu Enter = biarkan kosong. | Key wajib diisi. `check` dan `run` gagal (exit 78) selama masih kosong. |
-| `# @masked` | Ketikan tampil sebagai `*` dan diketik **dua kali** saat `setup` dan `set`. Nilai bawaan dari template diabaikan. Untuk rahasia yang namanya tidak terlihat rahasia, misalnya `DATABASE_URL=postgres://user:password@host/db`. | Tampilan mengikuti nama key (lihat di bawah). |
+| `# @plain` | The value is stored **plain**, not encrypted. For values that are not secret, such as a port or log level. | The value is encrypted (`enc:...`). A plain value typed by hand into this key makes `check` and `run` fail until `setup` encrypts it. |
+| `# @optional` | The key **may be empty**. `check` and `run` still work, and the application gets the variable with an empty value. In `setup`, clear the line, then Enter = leave it empty. | The key is required. `check` and `run` fail (exit 78) while it is empty. |
+| `# @masking` | Typing shows `*` and the value is typed **twice** in `setup` and `set`. The template's default is ignored. For secrets whose name does not look secret, for example `DATABASE_URL=postgres://user:password@host/db`. | How the key is typed follows its name (see below). |
 
-Aturan penulisan:
+Writing rules:
 
-- Beberapa anotasi boleh dalam satu baris (`# @plain @optional`) atau di baris terpisah.
-- Baris komentar yang diawali `@` hanya boleh berisi anotasi. Anotasi yang tidak dikenal (misalnya salah
-  ketik `# @optinal`) ditolak beserta nomor barisnya, supaya rahasia tidak diam-diam tersimpan polos.
-- Komentar yang tidak diawali `@` adalah teks bantuan biasa, walaupun berisi `@` di tengahnya
-  (`# email @ kantor`).
+- Several annotations may share one line (`# @plain @optional`) or use separate lines.
+- A comment line that starts with `@` may hold annotations only. Unknown annotations (for example the
+  typo `# @optinal`) are refused with their line number, so a secret can never silently end up plain.
+  The old name `@masked` is refused too, with a message saying it was renamed to `@masking`.
+- A comment that does not start with `@` is plain help text, even with an `@` in the middle
+  (`# email @ office`).
 
-Tampilan ketikan tanpa `@masked`: key tetap tampil `*` bila salah satu bagian namanya (dipisah `_`,
-huruf besar atau kecil sama saja) adalah `PASSWORD`, `PASSWD`, `PASS`, `PWD`, `SECRET`, `TOKEN`,
-`AUTH`, atau `SALT`. Contoh: `REDIS_PASSWORD` tampil `*`; `API_KEY` dan
-`PASSPORT_URL` terlihat (beri `@masked` bila `API_KEY` harus tampil `*`). Tampilan tidak memengaruhi enkripsi: yang menentukan
-enkripsi hanya `@plain`.
+Typing without `@masking`: a key still shows `*` when one part of its name (split on `_`, any case) is
+`PASSWORD`, `PASSWD`, `PASS`, `PWD`, `SECRET`, `TOKEN`, `AUTH`, or `SALT`. For example `REDIS_PASSWORD`
+shows `*`; `API_KEY` and `PASSPORT_URL` are visible (add `@masking` if `API_KEY` must show `*`). How a
+key is typed does not affect encryption: only `@plain` decides that.
 
-Contoh kombinasi:
+Combinations:
 
-| Template | Disimpan | Saat diketik | Boleh kosong |
+| Template | Stored | While typing | May be empty |
 | --- | --- | --- | --- |
-| `REDIS_HOST=` | terenkripsi | terlihat, sekali | tidak |
-| `REDIS_PASSWORD=` | terenkripsi | `*`, dua kali | tidak |
-| `# @optional`<br>`REDIS_PASSWORD=` | terenkripsi | `*`, dua kali | ya |
-| `# @plain`<br>`PORT=8899` | polos | terlihat, `8899` sudah terisi | tidak |
-| `# @plain @optional`<br>`LOG_LEVEL=info` | polos | terlihat, `info` sudah terisi | ya |
-| `# @masked`<br>`DATABASE_URL=` | terenkripsi | `*`, dua kali | tidak |
+| `REDIS_HOST=` | encrypted | visible, once | no |
+| `REDIS_PASSWORD=` | encrypted | `*`, twice | no |
+| `# @optional`<br>`REDIS_PASSWORD=` | encrypted | `*`, twice | yes |
+| `# @plain`<br>`PORT=8899` | plain | visible, `8899` prefilled | no |
+| `# @plain @optional`<br>`LOG_LEVEL=info` | plain | visible, `info` prefilled | yes |
+| `# @masking`<br>`DATABASE_URL=` | encrypted | `*`, twice | no |
 
-### Penanda lain
+### Other markers
 
-| Penanda | Di mana | Fungsi |
+| Marker | Where | Meaning |
 | --- | --- | --- |
-| `SULTRAKEY_APP=<app>` | Baris awal `.env` (dibuat `init`) | Nama aplikasi; menentukan file kunci `/etc/sultrakey/<app>.key` (Windows: `%APPDATA%\sultrakey\<app>.key`). Tidak boleh ada di template. |
-| `SULTRAKEY_PUBLIC_KEY=age1...` | Baris awal `.env` (dibuat `init`) | Public key untuk mengenkripsi. Harus pasangan file kunci; kalau tidak, `check` gagal. |
-| `SULTRAKEY_*` | Nama key | Awalan milik sultrakey. Selain dua baris di atas, key berawalan ini ditolak di `.env` dan template. Variabel environment berawalan ini juga tidak pernah diteruskan ke aplikasi oleh `run`. |
-| `enc:...` | Value di `.env` | Value terenkripsi. Jangan diedit manual; ganti lewat `sultrakey set KEY`. |
-| `@/lokasi/file` | Jawaban saat `setup` (atau `KEY=@file` lewat stdin) | Isi value diambil dari file, untuk value banyak baris seperti sertifikat. Hapus file itu setelahnya. Tanpa `@`, path disimpan apa adanya sebagai teks (cocok untuk `PUBLIC_KEY_PATH=keys/public_key.pem`). |
-| `@@...` | Jawaban saat `setup` | Value yang memang diawali `@`. `@@abc` disimpan sebagai `@abc`. |
+| `SULTRAKEY_APP=<app>` | First lines of `.env` (written by `init`) | Application name; picks the key file `/etc/sultrakey/<app>.key` (Windows: `%APPDATA%\sultrakey\<app>.key`). Not allowed in the template. |
+| `SULTRAKEY_PUBLIC_KEY=age1...` | First lines of `.env` (written by `init`) | Public key used to encrypt. Must match the key file; otherwise `check` fails. |
+| `SULTRAKEY_*` | Key names | Prefix reserved for sultrakey. Apart from the two lines above, keys with this prefix are refused in `.env` and the template. Environment variables with this prefix are never passed to the application by `run`. |
+| `enc:...` | Values in `.env` | An encrypted value. Do not edit by hand; replace it with `sultrakey set KEY`. |
+| `@/path/to/file` | An answer in `setup` (or `KEY=@file` on stdin) | The value is read from the file, for multi-line values such as certificates. Delete the file afterwards. Without `@`, the path is saved as plain text (fine for `PUBLIC_KEY_PATH=keys/public_key.pem`). |
+| `@@...` | An answer in `setup` | A value that really starts with `@`. `@@abc` is saved as `@abc`. |
 
-Hasil `.env`:
+The resulting `.env`:
 
 ```env
 SULTRAKEY_APP=api
 SULTRAKEY_PUBLIC_KEY=age1...
-# Port aplikasi
+# Application port
 # @plain
 PORT=8899
-# Host Redis, tanpa http:// dan port. Contoh: 10.10.1.20
+# Redis host, without http:// and port. Example: 10.10.1.20
 REDIS_HOST=enc:YWdlLWVuY3J5cHRpb24...
 ...
 ```
 
-## Perintah
+## Commands
 
-| Perintah | Fungsi |
+| Command | What it does |
 | --- | --- |
-| `init <app> [--owner user[:group]]` | Buat kunci bila belum ada (tidak pernah menimpa). Buat `.env` dari template, atau ambil alih `.env` polos lama dengan mengenkripsi value-nya. |
-| `setup` | Samakan `.env` dengan template, enkripsi value polos di key rahasia, lalu tampilkan semua key kosong dalam satu layar (key rahasia tampil `*`). Tanpa terminal: baca baris `KEY=value` dari stdin. |
-| `set <KEY> [--stdin \| --file F]` | Ganti satu value. Value tidak pernah diambil dari argumen. |
-| `list` | Nama key dan statusnya. Value tidak pernah ditampilkan. |
-| `check` | Semua key wajib terisi, semua `enc:` bisa dibuka, kunci cocok, izin file kunci aman. |
-| `run [--env F] -- <cmd> [args]` | `check`, lalu jalankan aplikasi dengan value di environment. |
-| `install` / `update [--check] [-y]` / `uninstall [-y]` | Pasang, perbarui, atau hapus binary. |
+| `init <app> [--owner user[:group]]` | Create the key if missing (never replaces one). Create `.env` from the template, or take over an old plain `.env` by encrypting its values. |
+| `setup` | Bring `.env` in line with the template, encrypt plain values in secret keys, then show every empty key on one screen (secret keys show `*`). Without a terminal: read `KEY=value` lines from stdin. |
+| `set <KEY> [--stdin \| --file F]` | Replace one value. Values are never taken from arguments. |
+| `list` | Key names and their status. Values are never shown. |
+| `check` | Every required key filled, every `enc:` decryptable, the key matches, key file permissions are safe. |
+| `run [--env F] -- <cmd> [args]` | `check`, then run the application with the values in its environment. |
+| `install` / `update [--check] [-y]` / `uninstall [-y]` | Install, update, or remove the binary. |
 
-Opsi global: `--env` (bawaan `./.env`), `--template` (bawaan `./.env.example`), `--key-file`.
+Global options: `--env` (default `./.env`), `--template` (default `./.env.example`), `--key-file`.
 
-Urutan mencari kunci:
+Where the key is looked for, in order:
 
 1. `--key-file`
 2. `SULTRAKEY_KEY_FILE`
-3. `$CREDENTIALS_DIRECTORY/sultrakey.key` (systemd `LoadCredential=`, butuh systemd ≥ 247: Rocky 9, Ubuntu 22+)
+3. `$CREDENTIALS_DIRECTORY/sultrakey.key` (systemd `LoadCredential=`, needs systemd ≥ 247: Rocky 9, Ubuntu 22+)
 4. `/etc/sultrakey/<app>.key` (Windows: `%APPDATA%\sultrakey\<app>.key`)
 
-Exit code: `0` sukses, `64` salah pakai, `78` konfigurasi salah, `1` lainnya. Exit `78` membuat
-pm2 (`stop_exit_codes: [78]`) dan systemd (`RestartPreventExitStatus=78`) berhenti mencoba restart.
+Exit codes: `0` success, `64` wrong usage, `78` configuration problem, `1` anything else. Exit `78`
+makes pm2 (`stop_exit_codes: [78]`) and systemd (`RestartPreventExitStatus=78`) stop restarting.
 
-## Detail `run`
+## How `run` works
 
-- Linux/macOS: `exec`. Aplikasi mengambil alih PID sultrakey, jadi pm2/systemd memantau aplikasi aslinya,
-  dan sinyal serta exit code langsung sampai ke aplikasi.
-- Windows: aplikasi dijalankan sebagai proses anak, dan exit code-nya diteruskan.
-  - Ctrl+C sampai ke aplikasi.
-  - Bila terminal ditutup paksa, aplikasi ikut mati (Job Object), jadi port tidak tertahan.
-  - Perintah `.cmd`/`.bat` (`npm`, `npx`, `pnpm`, `yarn`, `mvnw`) ditemukan lewat `PATHEXT`.
-- Value dari `.env` mengalahkan environment yang sudah ada. Bila bentrok, sultrakey mencetak peringatan
-  berisi nama key saja.
-- Key `@optional` yang kosong dikirim sebagai string kosong.
-- Variabel `SULTRAKEY_*` tidak diteruskan ke aplikasi.
+- Linux/macOS: `exec`. The application takes over sultrakey's PID, so pm2/systemd watch the real
+  application, and signals and exit codes go straight to it.
+- Windows: the application runs as a child process, and its exit code is passed on.
+  - Ctrl+C reaches the application.
+  - If the terminal is closed forcibly, the application dies with it (Job Object), so ports are not
+    left held.
+  - `.cmd`/`.bat` commands (`npm`, `npx`, `pnpm`, `yarn`, `mvnw`) are found through `PATHEXT`.
+- Values from `.env` win over the existing environment. On a clash, sultrakey prints a warning with
+  the key name only.
+- Empty `@optional` keys are sent as empty strings.
+- `SULTRAKEY_*` variables are not passed to the application.
 
-## Membaca value di aplikasi
+## Reading values in the application
 
-| Aplikasi | Cara membaca |
+| Application | How to read |
 | --- | --- |
 | Express / Node.js | `process.env.REDIS_HOST` |
 | SvelteKit (adapter-node) | `import { env } from '$env/dynamic/private'` → `env.REDIS_HOST` |
-| Spring Boot | `spring.data.redis.host=${REDIS_HOST}` di `application.properties` |
+| Spring Boot | `spring.data.redis.host=${REDIS_HOST}` in `application.properties` |
 | Go | `os.Getenv("REDIS_HOST")` |
 | Rust | `std::env::var("REDIS_HOST")` |
 
-Contoh perintah: `sultrakey run -- node dist/main.js`, `sultrakey run -- node build` (SvelteKit),
+Example commands: `sultrakey run -- node dist/main.js`, `sultrakey run -- node build` (SvelteKit),
 `sultrakey run -- java -jar app.jar`, `sultrakey run -- mvnw.cmd spring-boot:run`, `sultrakey run -- go run .`.
 
-**Peringatan:**
+**Warnings:**
 
-- **Jangan memuat `.env` sendiri dengan mode menimpa**, misalnya `dotenv` dengan `override: true`.
-  Aplikasi akan membaca teks `enc:...` sebagai value. `dotenv` biasa (tanpa override) masih aman,
-  karena tidak menimpa value dari sultrakey.
-- **Framework yang membaca env saat build** (SvelteKit `$env/static/*`, Vite `import.meta.env`,
-  Next.js `NEXT_PUBLIC_*`) menanam value ke hasil build. Saat aplikasi jalan, sultrakey sudah terlambat
-  untuk mengisinya, dan value itu bisa terkirim ke browser. Secret hanya boleh dibaca di sisi server saat
-  aplikasi jalan (SvelteKit: `$env/dynamic/private`).
-- **pm2 mode cluster** tidak bisa menjalankan sultrakey. Pakai mode fork (lihat runbook).
+- **Do not load `.env` yourself in override mode**, for example `dotenv` with `override: true`.
+  The application would read the `enc:...` text as the value. Plain `dotenv` (without override) is
+  still safe, because it does not replace values set by sultrakey.
+- **Frameworks that read env at build time** (SvelteKit `$env/static/*`, Vite `import.meta.env`,
+  Next.js `NEXT_PUBLIC_*`) bake values into the build. When the application runs, it is too late for
+  sultrakey to fill them, and those values can end up in the browser. Read secrets only on the server,
+  at run time (SvelteKit: `$env/dynamic/private`).
+- **pm2 cluster mode** cannot run sultrakey. Use fork mode (see the runbook).
 
-## Darurat: buka value tanpa sultrakey
+## Emergency: decrypt a value without sultrakey
 
 ```sh
-echo '<teks base64 setelah enc:>' | base64 -d | age -d -i /etc/sultrakey/<app>.key
+echo '<base64 text after enc:>' | base64 -d | age -d -i /etc/sultrakey/<app>.key
 ```
 
-File kunci memakai format identity age standar (`AGE-SECRET-KEY-1...`). Kunci hilang berarti semua value
-harus diisi ulang, jadi selalu simpan backup kunci di tempat yang offline.
+The key file uses the standard age identity format (`AGE-SECRET-KEY-1...`). A lost key means every
+value must be entered again, so always keep a backup of the key somewhere offline.
 
-## Pengembangan
+## Development
 
 ```sh
 cargo fmt --check
 cargo clippy --all-targets -- -D warnings
-cargo test                                   # test kompatibilitas age jalan bila CLI `age` terpasang
+cargo test                                   # the age compatibility test runs when the `age` CLI is installed
 ```
 
-- Integration test memakai folder sementara (`SULTRAKEY_KEY_DIR`, `SULTRAKEY_INSTALL_DIR`) dan server HTTP
-  lokal (`SULTRAKEY_UPDATE_URL`). Test tidak pernah menyentuh `/etc/sultrakey` atau PATH asli.
-- CI (`.github/workflows/ci.yml`) menjalankan fmt, clippy, test di Linux x86/ARM, Windows, dan macOS,
-  cek MSRV 1.89, shellcheck, serta smoke test binary musl di container `centos:7`.
-- Rilis: naikkan `version` di `Cargo.toml`, commit, lalu `git tag v0.1.1 && git push origin v0.1.1`.
-  Workflow `release.yml` membangun binary untuk 5 target, `SHA256SUMS`, `manifest.json`, `install.sh`,
-  dan `install.ps1`, lalu menerbitkannya di GitHub Releases.
-- Pindah ke GitLab kantor: build dengan `SULTRAKEY_RELEASE_BASE=<alamat rilis>`, terbitkan file yang sama,
-  dan sesuaikan bentuk URL di `src/update/http.rs` bila berbeda. Proyek GitLab harus berstatus **Public**.
-  Status "Internal" tetap butuh login, sehingga `update` dan skrip pasang akan gagal.
-- Repo harus tetap publik. Di repo private, unduhan rilis butuh token.
+- Integration tests use temporary folders (`SULTRAKEY_KEY_DIR`, `SULTRAKEY_INSTALL_DIR`) and a local
+  HTTP server (`SULTRAKEY_UPDATE_URL`). Tests never touch the real `/etc/sultrakey` or PATH.
+- CI (`.github/workflows/ci.yml`) runs fmt, clippy, and tests on Linux x86/ARM, Windows, and macOS,
+  checks MSRV 1.89, runs shellcheck, and smoke-tests the musl binary in a `centos:7` container.
+- Releasing: bump `version` in `Cargo.toml`, commit, then `git tag v0.1.1 && git push origin v0.1.1`.
+  The `release.yml` workflow builds binaries for 5 targets, `SHA256SUMS`, `manifest.json`, `install.sh`,
+  and `install.ps1`, then publishes them on GitHub Releases.
+- Moving to the office GitLab: build with `SULTRAKEY_RELEASE_BASE=<release address>`, publish the same
+  files, and adjust the URL shape in `src/update/http.rs` if it differs. The GitLab project must be
+  **Public**. "Internal" still needs a login, so `update` and the install scripts would fail.
+- The repo must stay public. In a private repo, release downloads need a token.
 
-Struktur kode:
+Code layout:
 
 ```
-src/envfile/   parser, penulis, dan sinkronisasi template ↔ .env
+src/envfile/   parser, writer, and template ↔ .env sync
 src/crypto.rs  age X25519 + base64
-src/keyfile.rs lokasi, baca, dan buat file kunci
-src/commands/  satu file per perintah
-src/launch/    exec (Unix) / proses anak + Job Object (Windows)
-src/install/   lokasi pasang dan penggantian binary (diadaptasi dari lopi)
-src/update/    manifest, checksum, unduhan HTTPS
+src/keyfile.rs locating, reading, and creating key files
+src/commands/  one file per command
+src/input/     prompts, the setup screen (ratatui), and @file answers
+src/launch/    exec (Unix) / child process + Job Object (Windows)
+src/install/   install location and binary replacement (adapted from lopi)
+src/update/    manifest, checksum, HTTPS downloads
 ```
 
-Di luar cakupan v1: rotasi kunci, perintah untuk mencetak value polos, dan integrasi dengan secret manager.
+Out of scope for v1: key rotation, a command that prints plain values, and secret manager integration.
