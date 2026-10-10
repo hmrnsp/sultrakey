@@ -16,7 +16,7 @@ pub fn run(ctx: &Ctx, command: &[OsString]) -> Result<i32> {
     let plan = launch::plan(env::vars_os(), &opened.values);
     for key in &plan.conflicts {
         output::warn(&format!(
-            "{key} sudah ada di environment; value dari .env yang dipakai."
+            "{key} is already in the environment; the value from .env is used."
         ));
     }
     drop(opened);

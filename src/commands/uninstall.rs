@@ -15,10 +15,10 @@ pub fn run(yes: bool) -> Result<i32> {
     let target = install::installed_exe(system::is_root())?;
     let dir = target
         .parent()
-        .context("lokasi pasang tidak punya folder")?;
+        .context("the install location has no folder")?;
     if !yes {
-        require_terminal("sultrakey uninstall -y (tanpa konfirmasi)")?;
-        let question = format!("Hapus sultrakey dari {}?", target.display());
+        require_terminal("sultrakey uninstall -y (no confirmation)")?;
+        let question = format!("Remove sultrakey from {}?", target.display());
         if !prompt::confirm(&mut Terminal, &question, false)? {
             return Err(Abort::Cancelled.into());
         }
@@ -27,19 +27,19 @@ pub fn run(yes: bool) -> Result<i32> {
     let mut changed = remove_from_path(dir)?;
     if target.exists() {
         install::remove_exe(&target)?;
-        output::ok(&format!("{} dihapus.", target.display()));
+        output::ok(&format!("{} removed.", target.display()));
         changed = true;
     }
     if changed {
         if let Some(keys) = keyfile::default_dir() {
             output::info(&format!(
-                "File kunci tidak dihapus dan tetap tersimpan di {}.",
+                "Key files are not deleted; they stay in {}.",
                 keys.display()
             ));
         }
     } else {
         output::info(&format!(
-            "sultrakey tidak terpasang di {}; tidak ada yang dihapus.",
+            "sultrakey is not installed in {}; nothing was removed.",
             target.display()
         ));
     }
@@ -50,7 +50,7 @@ pub fn run(yes: bool) -> Result<i32> {
 fn remove_from_path(dir: &std::path::Path) -> Result<bool> {
     let removed = install::remove_from_path(&mut install::windows::RegistryPath, dir)?;
     if removed {
-        output::ok(&format!("{} dihapus dari PATH.", dir.display()));
+        output::ok(&format!("{} removed from PATH.", dir.display()));
     }
     Ok(removed)
 }

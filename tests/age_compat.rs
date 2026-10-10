@@ -22,7 +22,7 @@ fn age_available() -> bool {
             std::env::var_os("SULTRAKEY_REQUIRE_AGE_CLI").is_none(),
             "SULTRAKEY_REQUIRE_AGE_CLI is set but the age tool is not installed"
         );
-        eprintln!("age tidak terpasang; test kompatibilitas dilewati");
+        eprintln!("age is not installed; compatibility test skipped");
     }
     found
 }
@@ -68,7 +68,7 @@ fn sultrakey_opens_values_made_by_the_age_tool() {
     env.ready();
     let dotenv = env.read(".env");
     let public_key = value_of(&dotenv, "SULTRAKEY_PUBLIC_KEY");
-    env.write("plain.txt", "dibuat-dengan-age");
+    env.write("plain.txt", "made-with-age");
     let cipher = env.path("made.age");
     let out = Command::new("age")
         .args(["-r", public_key, "-o"])
@@ -84,5 +84,5 @@ fn sultrakey_opens_values_made_by_the_age_tool() {
     let mut args = vec!["run", "--"];
     args.extend(print_env());
     let output = env.run(&args, "");
-    assert!(text(&output.stdout).contains("REDIS_HOST=dibuat-dengan-age"));
+    assert!(text(&output.stdout).contains("REDIS_HOST=made-with-age"));
 }

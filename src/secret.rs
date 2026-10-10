@@ -30,7 +30,7 @@ impl From<&str> for Secret {
 
 impl fmt::Debug for Secret {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Secret([disembunyikan])")
+        write!(f, "Secret([hidden])")
     }
 }
 

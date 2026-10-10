@@ -1,5 +1,5 @@
 //! One module per subcommand, plus what they share: reading and writing `.env`, finding
-//! the key, and the exact command to suggest in `Solusi:` lines.
+//! the key, and the exact command to suggest in `Fix:` lines.
 
 pub mod check;
 pub mod init;
@@ -65,7 +65,7 @@ impl Ctx {
             self.cmd(&format!("init {app}"))
         } else {
             format!(
-                "sudo {} --owner <user-aplikasi>",
+                "sudo {} --owner <app-user>",
                 self.cmd(&format!("init {app}"))
             )
         }
@@ -85,7 +85,7 @@ pub fn parse_fail(path: &Path, err: &ParseError) -> Fail {
     Fail::config(
         format!("{} {err}.", path.display()),
         format!(
-            "buka {} dengan editor teks dan perbaiki baris {}",
+            "open {} in a text editor and fix line {}",
             path.display(),
             err.line
         ),
@@ -100,18 +100,18 @@ pub fn read_doc(path: &Path) -> Result<Option<Document>, Fail> {
         Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
             let solution = match crate::system::owner_name(path) {
                 Some(owner) => format!(
-                    "jalankan sebagai user pemilik file ({owner}), contoh: sudo -u {owner} sultrakey check"
+                    "run as the user who owns the file ({owner}), for example: sudo -u {owner} sultrakey check"
                 ),
-                None => "jalankan dengan sudo, atau sebagai user pemilik file".into(),
+                None => "run with sudo, or as the user who owns the file".into(),
             };
             return Err(Fail::config(
-                format!("Tidak punya izin membaca {}.", path.display()),
+                format!("No permission to read {}.", path.display()),
                 solution,
             ));
         }
         Err(err) => {
             return Err(Fail::config_bare(format!(
-                "{} tidak bisa dibaca: {err}.",
+                "{} cannot be read: {err}.",
                 path.display()
             )));
         }
@@ -125,10 +125,10 @@ pub fn read_doc(path: &Path) -> Result<Option<Document>, Fail> {
 pub fn load_env(ctx: &Ctx) -> Result<Document, Fail> {
     read_doc(&ctx.env)?.ok_or_else(|| {
         Fail::config(
-            format!("File {} tidak ditemukan.", ctx.env.display()),
+            format!("File {} not found.", ctx.env.display()),
             format!(
-                "jalankan dari folder aplikasi atau pakai --env <lokasi>; untuk aplikasi baru: {}",
-                ctx.init_cmd("<nama-app>")
+                "run from the application folder or use --env <path>; for a new application: {}",
+                ctx.init_cmd("<app-name>")
             ),
         )
     })
@@ -138,17 +138,17 @@ pub fn load_env(ctx: &Ctx) -> Result<Document, Fail> {
 pub fn load_template(ctx: &Ctx) -> Result<Document, Fail> {
     let template = read_doc(&ctx.template)?.ok_or_else(|| {
         Fail::config(
-            format!("Template {} tidak ditemukan.", ctx.template.display()),
-            "jalankan dari folder aplikasi, atau tunjuk lokasinya dengan --template <lokasi>",
+            format!("Template {} not found.", ctx.template.display()),
+            "run from the application folder, or point to it with --template <path>",
         )
     })?;
     if template.header.is_some() {
         return Err(Fail::config(
             format!(
-                "Template {} berisi header SULTRAKEY_*; itu hanya boleh ada di .env.",
+                "Template {} contains a SULTRAKEY_* header; it belongs in .env only.",
                 ctx.template.display()
             ),
-            "hapus baris SULTRAKEY_APP dan SULTRAKEY_PUBLIC_KEY dari template",
+            "remove the SULTRAKEY_APP and SULTRAKEY_PUBLIC_KEY lines from the template",
         ));
     }
     Ok(template)
@@ -159,20 +159,20 @@ pub fn header(ctx: &Ctx, doc: &Document) -> Result<Header, Fail> {
     let Some(header) = doc.header.clone() else {
         return Err(Fail::config(
             format!(
-                "{} belum dikelola sultrakey (tidak ada baris SULTRAKEY_APP).",
+                "{} is not managed by sultrakey yet (no SULTRAKEY_APP line).",
                 ctx.env.display()
             ),
-            ctx.init_cmd("<nama-app>"),
+            ctx.init_cmd("<app-name>"),
         ));
     };
     if !valid_app(&header.app) {
         return Err(Fail::config(
             format!(
-                "SULTRAKEY_APP di {} tidak valid ('{}').",
+                "SULTRAKEY_APP in {} is not valid ('{}').",
                 ctx.env.display(),
                 header.app
             ),
-            "pulihkan .env dari backup; nama app hanya huruf kecil, angka, dan tanda minus",
+            "restore .env from a backup; an app name has only lowercase letters, digits, and dashes",
         ));
     }
     Ok(header)
@@ -182,10 +182,10 @@ pub fn recipient(ctx: &Ctx, header: &Header) -> Result<Recipient, Fail> {
     crypto::parse_recipient(&header.public_key).map_err(|why| {
         Fail::config(
             format!(
-                "SULTRAKEY_PUBLIC_KEY di {} rusak: {why}.",
+                "SULTRAKEY_PUBLIC_KEY in {} is broken: {why}.",
                 ctx.env.display()
             ),
-            "pulihkan .env dari backup",
+            "restore .env from a backup",
         )
     })
 }
@@ -197,8 +197,8 @@ pub fn key_location(ctx: &Ctx, app: &str) -> Result<Located, Fail> {
 /// The fix for a missing key when the `.env` already depends on one.
 pub fn missing_key_hint(ctx: &Ctx, app: &str, path: &Path) -> String {
     format!(
-        "pulihkan file kunci dari backup ke {}; bila tidak ada backup: hapus {}, lalu jalankan {} \
-         dan sultrakey setup (semua value diisi ulang)",
+        "restore the key file from a backup to {}; without a backup: delete {}, then run {} \
+         and sultrakey setup (every value is entered again)",
         path.display(),
         ctx.env.display(),
         ctx.init_cmd(app)
@@ -224,11 +224,11 @@ pub fn load_key(ctx: &Ctx, header: &Header) -> Result<(Identity, PathBuf), Fail>
 pub fn mismatch(ctx: &Ctx, key: &Path) -> Fail {
     Fail::config(
         format!(
-            "File kunci {} bukan pasangan {} (public key berbeda).",
+            "Key file {} does not belong to {} (different public key).",
             key.display(),
             ctx.env.display()
         ),
-        "pakai file kunci yang benar (--key-file <lokasi>), atau pulihkan file kunci aplikasi ini dari backup",
+        "use the right key file (--key-file <path>), or restore this application's key file from a backup",
     )
 }
 
@@ -239,16 +239,16 @@ pub fn write_env(ctx: &Ctx, doc: &Document, owner: FileOwner) -> Result<()> {
         let fail = match err.kind() {
             io::ErrorKind::PermissionDenied => Fail::config(
                 format!(
-                    "Tidak punya izin menulis {} atau folder tempatnya.",
+                    "No permission to write {} or its folder.",
                     ctx.env.display()
                 ),
                 if cfg!(windows) {
-                    "tutup program lain yang membuka file itu, lalu ulangi".to_string()
+                    "close other programs that have the file open, then try again".to_string()
                 } else {
                     format!("sudo {}", ctx.cmd("setup"))
                 },
             ),
-            _ => Fail::other(format!("{} tidak bisa ditulis: {err}.", ctx.env.display())),
+            _ => Fail::other(format!("{} cannot be written: {err}.", ctx.env.display())),
         };
         anyhow::Error::new(fail)
     })
@@ -263,7 +263,7 @@ pub fn require_terminal(instead: &str) -> Result<()> {
         .map(|hint| format!(" ({hint})"))
         .unwrap_or_default();
     Err(Fail::usage(
-        format!("Tidak bisa bertanya karena ini bukan terminal{hint}."),
+        format!("Cannot ask questions because this is not a terminal{hint}."),
         instead,
     )
     .into())
@@ -272,7 +272,7 @@ pub fn require_terminal(instead: &str) -> Result<()> {
 /// Reads all of stdin (for `--stdin` and non-terminal `setup`).
 pub fn read_stdin() -> Result<zeroize::Zeroizing<String>> {
     let mut text = zeroize::Zeroizing::new(String::new());
-    io::Read::read_to_string(&mut io::stdin(), &mut text).context("stdin tidak bisa dibaca")?;
+    io::Read::read_to_string(&mut io::stdin(), &mut text).context("cannot read stdin")?;
     Ok(text)
 }
 
@@ -302,7 +302,7 @@ mod tests {
         if cfg!(windows) {
             assert_eq!(init, "sultrakey init demo");
         } else {
-            assert_eq!(init, "sudo sultrakey init demo --owner <user-aplikasi>");
+            assert_eq!(init, "sudo sultrakey init demo --owner <app-user>");
         }
     }
 }

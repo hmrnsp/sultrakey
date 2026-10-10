@@ -31,19 +31,19 @@ pub fn run(ctx: &Ctx) -> Result<i32> {
     let mut doc = synced.doc;
     if !synced.added.is_empty() {
         output::info(&format!(
-            "Key baru dari template: {}",
+            "New keys from the template: {}",
             synced.added.join(", ")
         ));
     }
     for key in &synced.extra {
         output::warn(&format!(
-            "{key} ada di .env tetapi tidak ada di template; tetap disimpan di akhir file."
+            "{key} is in .env but not in the template; kept at the end of the file."
         ));
     }
 
     let protected = encrypt_plain_secrets(&mut doc, &recipient)?;
     if !protected.is_empty() {
-        output::ok(&format!("Value polos dienkripsi: {}", protected.join(", ")));
+        output::ok(&format!("Plain values encrypted: {}", protected.join(", ")));
     }
 
     let mut files = Vec::new();
@@ -55,16 +55,16 @@ pub fn run(ctx: &Ctx) -> Result<i32> {
 
     write_env(ctx, &doc, FileOwner::Keep)?;
     if filled.is_empty() {
-        output::ok(&format!("{} disimpan.", ctx.env.display()));
+        output::ok(&format!("{} saved.", ctx.env.display()));
     } else {
         output::ok(&format!(
-            "{} disimpan. Terisi: {}",
+            "{} saved. Filled: {}",
             ctx.env.display(),
             filled.join(", ")
         ));
     }
     for file in &files {
-        output::warn(&format!("Hapus file {} sekarang.", file.display()));
+        output::warn(&format!("Delete the file {} now.", file.display()));
     }
     let missing: Vec<&str> = doc
         .entries()
@@ -72,10 +72,10 @@ pub fn run(ctx: &Ctx) -> Result<i32> {
         .map(|entry| entry.key.as_str())
         .collect();
     if missing.is_empty() {
-        output::info(&format!("Langkah berikut: {}", ctx.cmd("check")));
+        output::info(&format!("Next: {}", ctx.cmd("check")));
     } else {
-        output::warn(&format!("Masih kosong: {}", missing.join(", ")));
-        output::info(&format!("Solusi: {}", ctx.cmd("setup")));
+        output::warn(&format!("Still empty: {}", missing.join(", ")));
+        output::info(&format!("Fix: {}", ctx.cmd("setup")));
     }
     Ok(0)
 }
@@ -126,7 +126,7 @@ fn fill_in_form(
 ) -> Result<Vec<String>> {
     let fields = fields(doc, template);
     if fields.is_empty() {
-        output::info("Semua key sudah terisi.");
+        output::info("Every key already has a value.");
         return Ok(Vec::new());
     }
     let keys: Vec<String> = fields.iter().map(|field| field.key.clone()).collect();
@@ -192,9 +192,9 @@ fn from_stdin(
     for (key, answer) in lines {
         let Some(entry) = doc.get_mut(&key) else {
             return Err(Fail::usage(
-                format!("{key} tidak ada di template {}.", ctx.template.display()),
+                format!("{key} is not in the template {}.", ctx.template.display()),
                 format!(
-                    "tambahkan {key} ke template, lalu jalankan {} lagi",
+                    "add {key} to the template, then run {} again",
                     ctx.cmd("setup")
                 ),
             )
@@ -202,7 +202,7 @@ fn from_stdin(
         };
         if entry.value != Value::Empty {
             output::warn(&format!(
-                "{key} sudah terisi; tidak diubah (untuk mengganti: {}).",
+                "{key} already has a value; not changed (to replace it: {}).",
                 ctx.cmd(&format!("set {key}"))
             ));
             continue;
@@ -234,16 +234,8 @@ mod tests {
     #[test]
     fn secret_looking_keys_are_masked_and_never_take_the_example_value() {
         let template = envfile::parse(
-            "# Port aplikasi
-# @plain
-PORT=8899
-REDIS_HOST=
-# @optional
-REDIS_PASSWORD=
-             # @masked
-DATABASE_URL=
-JWT_SECRET=changeme
-",
+            "# Port aplikasi\n# @plain\nPORT=8899\nREDIS_HOST=\n# @optional\nREDIS_PASSWORD=\n\
+             # @masking\nDATABASE_URL=\nJWT_SECRET=changeme\n",
         )
         .unwrap();
         let doc = envfile::sync(&template, &Document::default()).doc;
@@ -278,12 +270,7 @@ JWT_SECRET=changeme
 
     #[test]
     fn keys_with_a_value_are_not_asked() {
-        let template = envfile::parse(
-            "A=
-B=
-",
-        )
-        .unwrap();
+        let template = envfile::parse("A=\nB=\n").unwrap();
         let mut doc = envfile::sync(&template, &Document::default()).doc;
         doc.get_mut("A").unwrap().value = Value::Encrypted("QQ==".into());
         let keys: Vec<String> = fields(&doc, &template).into_iter().map(|f| f.key).collect();
@@ -292,15 +279,7 @@ B=
 
     #[test]
     fn answers_are_encrypted_unless_plain_and_unanswered_keys_stay_empty() {
-        let template = envfile::parse(
-            "# @plain
-PORT=
-REDIS_HOST=
-SSL_CERT=
-LATER=
-",
-        )
-        .unwrap();
+        let template = envfile::parse("# @plain\nPORT=\nREDIS_HOST=\nSSL_CERT=\nLATER=\n").unwrap();
         let mut doc = envfile::sync(&template, &Document::default()).doc;
         let recipient = crypto::generate().to_public();
         let mut files = Vec::new();
@@ -311,10 +290,7 @@ LATER=
             Some(Reply::Value(Secret::from("8899"), None)),
             Some(Reply::Value(Secret::from("10.0.0.5"), None)),
             Some(Reply::Value(
-                Secret::from(
-                    "A
-B",
-                ),
+                Secret::from("A\nB"),
                 Some(PathBuf::from("cert.pem")),
             )),
             None,

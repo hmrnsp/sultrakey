@@ -12,7 +12,7 @@ fn init_setup_check_run() {
     env.write(".env.example", TEMPLATE);
 
     let out = env.ok(&["init", "demo"], "");
-    assert!(out.contains("Kunci baru dibuat"), "{out}");
+    assert!(out.contains("New key created"), "{out}");
     assert!(env.key_file("demo").exists());
     let dotenv = env.read(".env");
     assert!(dotenv.starts_with("SULTRAKEY_APP=demo\nSULTRAKEY_PUBLIC_KEY=age1"));
@@ -26,7 +26,7 @@ fn init_setup_check_run() {
         &["setup"],
         &format!("REDIS_HOST={SECRET}\nSSL_CERT=@cert.pem\n"),
     );
-    assert!(out.contains("Terisi: REDIS_HOST, SSL_CERT, PORT"), "{out}");
+    assert!(out.contains("Filled: REDIS_HOST, SSL_CERT, PORT"), "{out}");
     let dotenv = env.read(".env");
     assert!(!dotenv.contains(SECRET));
     assert!(dotenv.contains("\nPORT=8899\n"), "default taken: {dotenv}");
@@ -34,11 +34,11 @@ fn init_setup_check_run() {
     assert!(dotenv.contains("\nSSL_CERT=enc:"));
 
     let out = env.ok(&["check"], "");
-    assert!(out.contains("Semua beres (4 key"), "{out}");
+    assert!(out.contains("All good (4 keys"), "{out}");
 
     let list = env.ok(&["list"], "");
-    assert!(list.contains("REDIS_HOST      terenkripsi"), "{list}");
-    assert!(list.contains("REDIS_PASSWORD  kosong (opsional)"), "{list}");
+    assert!(list.contains("REDIS_HOST      encrypted"), "{list}");
+    assert!(list.contains("REDIS_PASSWORD  empty (optional)"), "{list}");
 
     let mut args = vec!["run", "--"];
     args.extend(print_env());
@@ -70,13 +70,13 @@ fn second_setup_keeps_values_and_adds_new_template_keys() {
     assert_eq!(err_out.status.code(), Some(0));
     let stderr = text(&err_out.stderr);
     assert!(
-        stderr.contains("REDIS_HOST sudah terisi; tidak diubah"),
+        stderr.contains("REDIS_HOST already has a value; not changed"),
         "{stderr}"
     );
-    assert!(stderr.contains("Masih kosong: NEW_KEY"), "{stderr}");
+    assert!(stderr.contains("Still empty: NEW_KEY"), "{stderr}");
     let stderr = env.fails(&["check"], "", 78);
-    assert!(stderr.contains("NEW_KEY belum diisi."), "{stderr}");
-    assert!(stderr.contains("Solusi: sultrakey setup"), "{stderr}");
+    assert!(stderr.contains("NEW_KEY is empty."), "{stderr}");
+    assert!(stderr.contains("Fix: sultrakey setup"), "{stderr}");
 }
 
 #[test]
@@ -87,13 +87,13 @@ fn secret_keys_never_take_example_values() {
     let output = env.run(&["setup"], "");
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
     let stderr = text(&output.stderr);
-    assert!(stderr.contains("Masih kosong: DB_PASSWORD"), "{stderr}");
+    assert!(stderr.contains("Still empty: DB_PASSWORD"), "{stderr}");
 
     let dotenv = env.read(".env");
     assert!(dotenv.contains("\nPORT=8899\n"), "{dotenv}");
     assert!(dotenv.contains("\nDB_PASSWORD=\n"), "{dotenv}");
     let stderr = env.fails(&["check"], "", 78);
-    assert!(stderr.contains("DB_PASSWORD belum diisi."), "{stderr}");
+    assert!(stderr.contains("DB_PASSWORD is empty."), "{stderr}");
 }
 
 #[test]
@@ -107,7 +107,7 @@ fn run_refuses_and_passes_on_exit_codes() {
     args.extend(exit_with(0));
     let args: Vec<&str> = args.iter().map(String::as_str).collect();
     let stderr = env.fails(&args, "", 78);
-    assert!(stderr.contains("✗ REDIS_HOST belum diisi."), "{stderr}");
+    assert!(stderr.contains("✗ REDIS_HOST is empty."), "{stderr}");
 
     env.ok(&["setup"], &format!("REDIS_HOST={SECRET}\n"));
     let mut args = vec!["run".to_string(), "--".to_string()];
@@ -116,7 +116,7 @@ fn run_refuses_and_passes_on_exit_codes() {
     env.fails(&args, "", 3);
 
     let stderr = env.fails(&["run", "--", "no-such-program-xyz"], "", 78);
-    assert!(stderr.contains("tidak ditemukan"), "{stderr}");
+    assert!(stderr.contains("not found"), "{stderr}");
 }
 
 #[test]
@@ -143,7 +143,7 @@ fn run_hides_sultrakey_variables_and_warns_by_name() {
     assert!(printed.contains(&format!("REDIS_HOST={SECRET}")));
     let stderr = text(&output.stderr);
     assert!(
-        stderr.contains("REDIS_HOST sudah ada di environment"),
+        stderr.contains("REDIS_HOST is already in the environment"),
         "{stderr}"
     );
     assert!(!stderr.contains("old-value") && !stderr.contains(SECRET));
@@ -168,16 +168,16 @@ fn usage_errors_exit_64() {
 fn missing_files_are_configuration_problems() {
     let env = Env::new();
     let stderr = env.fails(&["check"], "", 78);
-    assert!(stderr.contains(".env tidak ditemukan"), "{stderr}");
+    assert!(stderr.contains(".env not found"), "{stderr}");
     let stderr = env.fails(&["init", "demo"], "", 78);
     assert!(
-        stderr.contains("Template .env.example tidak ditemukan"),
+        stderr.contains("Template .env.example not found"),
         "{stderr}"
     );
 
     env.write(".env", "A=1\n");
     let stderr = env.fails(&["setup"], "", 78);
-    assert!(stderr.contains("belum dikelola sultrakey"), "{stderr}");
+    assert!(stderr.contains("not managed by sultrakey yet"), "{stderr}");
 }
 
 #[test]
@@ -198,30 +198,30 @@ fn wrong_damaged_or_lost_keys() {
         "",
         78,
     );
-    assert!(stderr.contains("bukan pasangan"), "{stderr}");
+    assert!(stderr.contains("does not belong to"), "{stderr}");
 
     // A damaged value.
     let dotenv = env.read(".env");
     let damaged = dotenv.replace("REDIS_HOST=enc:", "REDIS_HOST=enc:AAAA");
     env.write(".env", &damaged);
     let stderr = env.fails(&["check"], "", 78);
-    assert!(stderr.contains("REDIS_HOST tidak bisa dibuka"), "{stderr}");
     assert!(
-        stderr.contains("Solusi: sultrakey set REDIS_HOST"),
+        stderr.contains("REDIS_HOST cannot be decrypted"),
         "{stderr}"
     );
+    assert!(stderr.contains("Fix: sultrakey set REDIS_HOST"), "{stderr}");
     env.write(".env", &dotenv);
 
     // Lost key: check fails, init refuses to make a new one.
     fs::remove_file(env.key_file("demo")).unwrap();
     let stderr = env.fails(&["check"], "", 78);
-    assert!(stderr.contains("tidak ditemukan"), "{stderr}");
+    assert!(stderr.contains("not found"), "{stderr}");
     assert!(
-        stderr.contains("pulihkan file kunci dari backup"),
+        stderr.contains("restore the key file from a backup"),
         "{stderr}"
     );
     let stderr = env.fails(&["init", "demo"], "", 78);
-    assert!(stderr.contains("Kunci baru tidak dibuat"), "{stderr}");
+    assert!(stderr.contains("No new key is created"), "{stderr}");
     assert!(!env.key_file("demo").exists());
 
     fs::write(env.key_file("demo"), good_key).unwrap();
@@ -248,11 +248,11 @@ fn plain_secret_values_block_run_until_setup_encrypts_them() {
     env.write(".env", &edited);
 
     let stderr = env.fails(&["check"], "", 78);
-    assert!(stderr.contains("REDIS_HOST tersimpan polos"), "{stderr}");
-    assert!(env.ok(&["list"], "").contains("polos — harus dienkripsi"));
+    assert!(stderr.contains("REDIS_HOST is stored plain"), "{stderr}");
+    assert!(env.ok(&["list"], "").contains("plain — must be encrypted"));
 
     let out = env.ok(&["setup"], "");
-    assert!(out.contains("Value polos dienkripsi: REDIS_HOST"), "{out}");
+    assert!(out.contains("Plain values encrypted: REDIS_HOST"), "{out}");
     assert!(!env.read(".env").contains("typed-by-hand"));
     env.ok(&["check"], "");
 }
@@ -262,12 +262,16 @@ fn unknown_annotations_are_refused_with_the_line() {
     let env = Env::new();
     env.write(".env.example", "# @optinal\nA=\n");
     let stderr = env.fails(&["init", "demo"], "", 78);
-    assert!(stderr.contains("baris 1"), "{stderr}");
+    assert!(stderr.contains("line 1"), "{stderr}");
     assert!(stderr.contains("@optinal"), "{stderr}");
 
     env.write(".env.example", "# @masked\nDATABASE_URL=\n");
+    let stderr = env.fails(&["init", "demo"], "", 78);
+    assert!(stderr.contains("renamed to @masking"), "{stderr}");
+
+    env.write(".env.example", "# @masking\nDATABASE_URL=\n");
     env.ok(&["init", "demo"], "");
-    assert!(env.read(".env").contains("# @masked\nDATABASE_URL=\n"));
+    assert!(env.read(".env").contains("# @masking\nDATABASE_URL=\n"));
 }
 
 #[test]
@@ -282,10 +286,10 @@ fn init_migrates_a_plain_env() {
     assert_eq!(output.status.code(), Some(0), "{}", text(&output.stderr));
     let stdout = text(&output.stdout);
     assert!(
-        stdout.contains("Dienkripsi: REDIS_HOST, LEGACY_TOKEN"),
+        stdout.contains("Encrypted: REDIS_HOST, LEGACY_TOKEN"),
         "{stdout}"
     );
-    assert!(text(&output.stderr).contains("LEGACY_TOKEN ada di .env tetapi tidak ada di template"));
+    assert!(text(&output.stderr).contains("LEGACY_TOKEN is in .env but not in the template"));
 
     let dotenv = env.read(".env");
     assert!(!dotenv.contains(SECRET) && !dotenv.contains("abc def"));
@@ -298,11 +302,11 @@ fn init_migrates_a_plain_env() {
 
     // Running init again changes nothing.
     let out = env.ok(&["init", "demo"], "");
-    assert!(out.contains("sudah memakai kunci ini"), "{out}");
+    assert!(out.contains("already uses this key"), "{out}");
     assert_eq!(env.read(".env"), dotenv);
 
     let stderr = env.fails(&["check"], "", 78);
-    assert!(stderr.contains("SSL_CERT belum diisi"), "{stderr}");
+    assert!(stderr.contains("SSL_CERT is empty"), "{stderr}");
 }
 
 #[test]
@@ -310,7 +314,7 @@ fn init_refuses_another_apps_env() {
     let env = Env::new();
     env.ready();
     let stderr = env.fails(&["init", "other"], "", 78);
-    assert!(stderr.contains("milik app 'demo'"), "{stderr}");
+    assert!(stderr.contains("belongs to app 'demo'"), "{stderr}");
 }
 
 #[cfg(unix)]
@@ -327,6 +331,6 @@ fn key_files_open_to_others_are_refused() {
 
     fs::set_permissions(&key, fs::Permissions::from_mode(0o644)).unwrap();
     let stderr = env.fails(&["check"], "", 78);
-    assert!(stderr.contains("terlalu terbuka (644)"), "{stderr}");
+    assert!(stderr.contains("too open (644)"), "{stderr}");
     assert!(stderr.contains("sudo chmod 400"), "{stderr}");
 }

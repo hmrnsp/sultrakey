@@ -40,11 +40,11 @@ pub fn plan_owner(
     match (root, owner) {
         (true, Some(spec)) => Ok(OwnerPlan::Root(spec.to_string())),
         (true, None) => Err(Fail::usage(
-            "Saat memakai sudo, --owner wajib diisi dengan user yang menjalankan aplikasi.",
-            format!("sudo sultrakey init {app} --owner <user-aplikasi>"),
+            "With sudo, --owner is required: the user that runs the application.",
+            format!("sudo sultrakey init {app} --owner <app-user>"),
         )),
         (false, Some(spec)) => Err(Fail::usage(
-            "--owner hanya bisa dipakai dengan sudo.",
+            "--owner works only with sudo.",
             format!("sudo sultrakey init {app} --owner {spec}"),
         )),
         (false, None) => Ok(OwnerPlan::NotRoot),
@@ -54,14 +54,14 @@ pub fn plan_owner(
 pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
     if !valid_app(app) {
         return Err(Fail::usage(
-            format!("Nama app '{app}' tidak valid."),
-            "pakai huruf kecil, angka, dan tanda minus, contoh: sultrakey init lakupandai",
+            format!("App name '{app}' is not valid."),
+            "use lowercase letters, digits, and dashes, for example: sultrakey init lakupandai",
         )
         .into());
     }
     let plan = plan_owner(cfg!(windows), system::is_root(), owner, app)?;
     if plan == (OwnerPlan::Ignore { warn: true }) {
-        output::warn("--owner tidak dipakai di Windows; diabaikan.");
+        output::warn("--owner is not used on Windows; ignored.");
     }
     let owner: Option<Owner> = match &plan {
         OwnerPlan::Root(spec) => Some(system::resolve_owner(spec)?),
@@ -77,7 +77,7 @@ pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
         if header.app != app {
             return Err(Fail::config(
                 format!(
-                    "{} milik app '{}', bukan '{app}'.",
+                    "{} belongs to app '{}', not '{app}'.",
                     ctx.env.display(),
                     header.app
                 ),
@@ -91,7 +91,7 @@ pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
     let identity = match keyfile::read(&located.path) {
         Ok(identity) => {
             output::ok(&format!(
-                "Memakai kunci yang sudah ada: {}",
+                "Using the existing key: {}",
                 located.path.display()
             ));
             identity
@@ -100,8 +100,8 @@ pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
             if existing.as_ref().is_some_and(|doc| doc.header.is_some()) {
                 return Err(Fail::config(
                     format!(
-                        "File kunci {} tidak ada, padahal {} sudah dienkripsi dengan sebuah kunci. \
-                         Kunci baru tidak dibuat, karena value lama akan jadi tidak terbaca.",
+                        "Key file {} is missing, but {} is already encrypted with a key. \
+                         No new key is created, because the existing values would become unreadable.",
                         located.path.display(),
                         ctx.env.display()
                     ),
@@ -110,10 +110,10 @@ pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
                 .into());
             }
             if plan == OwnerPlan::NotRoot && !located.custom {
-                let me = system::current_user_name().unwrap_or_else(|| "<user-anda>".into());
+                let me = system::current_user_name().unwrap_or_else(|| "<your-user>".into());
                 return Err(Fail::usage(
                     format!(
-                        "Membuat kunci di {} butuh hak root.",
+                        "Creating a key in {} needs root.",
                         located.path.parent().unwrap_or(&located.path).display()
                     ),
                     format!("sudo sultrakey init {app} --owner {me}"),
@@ -124,15 +124,15 @@ pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
             keyfile::create(&located.path, &identity, owner.as_ref())?;
             let whose = owner
                 .as_ref()
-                .map(|owner| format!(", pemilik {}", owner.label))
+                .map(|owner| format!(", owner {}", owner.label))
                 .unwrap_or_default();
             output::ok(&format!(
-                "Kunci baru dibuat: {} (izin 400{whose})",
+                "New key created: {} (mode 400{whose})",
                 located.path.display()
             ));
             output::warn(
-                "Simpan satu salinan file kunci ini di tempat aman (offline). \
-                 Kunci hilang = semua value harus diisi ulang.",
+                "Keep a copy of this key file somewhere safe (offline). \
+                 A lost key means every value must be entered again.",
             );
             identity
         }
@@ -159,7 +159,7 @@ pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
             if doc.header.as_ref().map(|h| &h.public_key) != Some(&public_key) {
                 return Err(super::mismatch(ctx, &located.path).into());
             }
-            output::ok(&format!("{} sudah memakai kunci ini.", ctx.env.display()));
+            output::ok(&format!("{} already uses this key.", ctx.env.display()));
         }
         Some(doc) => migrate(ctx, doc, header, file_owner(true))?,
         None => {
@@ -169,7 +169,7 @@ pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
             doc.header = Some(header);
             write_env(ctx, &doc, file_owner(false))?;
             output::ok(&format!(
-                "{} dibuat dari {} ({count} key, semua masih kosong).",
+                "{} created from {} ({count} keys, all still empty).",
                 ctx.env.display(),
                 ctx.template.display()
             ));
@@ -193,15 +193,15 @@ fn migrate(ctx: &Ctx, env: Document, header: Header, owner: FileOwner) -> Result
             let result = envfile::sync(&template, &env);
             for key in &result.extra {
                 output::warn(&format!(
-                    "{key} ada di .env tetapi tidak ada di template; tetap disimpan di akhir file."
+                    "{key} is in .env but not in the template; kept at the end of the file."
                 ));
             }
             result.doc
         }
         None => {
             output::warn(&format!(
-                "Template {} tidak ditemukan: anotasi @plain/@optional tidak disalin, \
-                 semua value yang terisi dienkripsi.",
+                "Template {} not found: @plain/@optional annotations are not copied, \
+                 every filled value is encrypted.",
                 ctx.template.display()
             ));
             env
@@ -220,13 +220,13 @@ fn migrate(ctx: &Ctx, env: Document, header: Header, owner: FileOwner) -> Result
     doc.header = Some(header);
     write_env(ctx, &doc, owner)?;
     output::ok(&format!(
-        "{} sekarang dikelola sultrakey.",
+        "{} is now managed by sultrakey.",
         ctx.env.display()
     ));
     if encrypted.is_empty() {
-        output::info("Tidak ada value polos yang perlu dienkripsi.");
+        output::info("No plain values to encrypt.");
     } else {
-        output::ok(&format!("Dienkripsi: {}", encrypted.join(", ")));
+        output::ok(&format!("Encrypted: {}", encrypted.join(", ")));
     }
     Ok(())
 }
@@ -242,7 +242,7 @@ fn next_steps(ctx: &Ctx, owner: Option<&Owner>) {
         }
         None => (ctx.cmd("setup"), ctx.cmd("check")),
     };
-    output::info(&format!("Langkah berikut: {setup}, lalu {check}"));
+    output::info(&format!("Next: {setup}, then {check}"));
 }
 
 #[cfg(test)]
@@ -267,7 +267,7 @@ mod tests {
         assert_eq!(need_owner.exit_code(), 64);
         assert_eq!(
             need_owner.issues[0].solution.as_deref(),
-            Some("sudo sultrakey init demo --owner <user-aplikasi>")
+            Some("sudo sultrakey init demo --owner <app-user>")
         );
         let need_root = plan_owner(false, false, Some("app"), "demo").unwrap_err();
         assert_eq!(need_root.exit_code(), 64);

@@ -1,10 +1,10 @@
-# Pasang sultrakey di Windows (laptop developer), tanpa hak Administrator:
+# Installs sultrakey on Windows (developer laptops), without Administrator rights:
 #
 #   powershell -ExecutionPolicy Bypass -c "irm https://github.com/hmrnsp/sultrakey/releases/latest/download/install.ps1 | iex"
 #
-# Versi tertentu: set $env:SULTRAKEY_VERSION = '0.1.0' sebelum menjalankan perintah di atas.
-# Skrip ini hanya mengunduh binary, mencocokkan SHA256, lalu menjalankan `sultrakey.exe install`.
-# (Hanya karakter ASCII: Windows PowerShell 5.1 membaca file tanpa BOM sebagai ANSI.)
+# A given version: set $env:SULTRAKEY_VERSION = '0.1.0' before running the command above.
+# This script only downloads the binary, checks its SHA256, then runs `sultrakey.exe install`.
+# (ASCII characters only: Windows PowerShell 5.1 reads files without a BOM as ANSI.)
 
 function Install-Sultrakey {
     $ErrorActionPreference = 'Stop'
@@ -26,7 +26,7 @@ function Install-Sultrakey {
     try {
         $exe = Join-Path $tmp 'sultrakey.exe'
         $sums = Join-Path $tmp 'SHA256SUMS'
-        Write-Host "Mengunduh $name ..."
+        Write-Host "Downloading $name ..."
         Invoke-WebRequest -UseBasicParsing -Uri "$url/$name" -OutFile $exe
         Invoke-WebRequest -UseBasicParsing -Uri "$url/SHA256SUMS" -OutFile $sums
 
@@ -37,15 +37,15 @@ function Install-Sultrakey {
                 $expected = $parts[0].ToLower()
             }
         }
-        if (-not $expected) { throw "SHA256SUMS tidak memuat $name." }
+        if (-not $expected) { throw "SHA256SUMS does not list $name." }
         $actual = (Get-FileHash -Algorithm SHA256 -Path $exe).Hash.ToLower()
-        if ($actual -ne $expected) { throw "Checksum $name tidak cocok; tidak ada yang dipasang." }
+        if ($actual -ne $expected) { throw "Checksum of $name does not match; nothing was installed." }
 
         & $exe install
-        if ($LASTEXITCODE -ne 0) { throw "sultrakey install gagal (exit $LASTEXITCODE)." }
+        if ($LASTEXITCODE -ne 0) { throw "sultrakey install failed (exit $LASTEXITCODE)." }
     } catch {
-        Write-Host "GAGAL: $($_.Exception.Message)" -ForegroundColor Red
-        Write-Host 'Solusi: periksa koneksi ke github.com, lalu ulangi perintah pasang.'
+        Write-Host "FAILED: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host 'Fix: check the connection to github.com, then run the install command again.'
     } finally {
         Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
     }

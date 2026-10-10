@@ -87,18 +87,18 @@ fn installed_cmd(env: &Env, url: &str) -> Command {
 fn install_then_uninstall() {
     let env = Env::new();
     let out = env.ok(&["install"], "");
-    assert!(out.contains("dipasang di"), "{out}");
+    assert!(out.contains("installed in"), "{out}");
     assert!(installed(&env).exists());
     let out = env.ok(&["install"], "");
-    assert!(out.contains("diperbarui ke sultrakey"), "{out}");
+    assert!(out.contains("updated to sultrakey"), "{out}");
 
     env.fails(&["uninstall"], "", 64);
     let out = env.ok(&["uninstall", "-y"], "");
-    assert!(out.contains("dihapus"), "{out}");
-    assert!(out.contains("File kunci tidak dihapus"), "{out}");
+    assert!(out.contains("removed"), "{out}");
+    assert!(out.contains("Key files are not deleted"), "{out}");
     assert!(!installed(&env).exists());
     let out = env.ok(&["uninstall", "-y"], "");
-    assert!(out.contains("tidak ada yang dihapus"), "{out}");
+    assert!(out.contains("nothing was removed"), "{out}");
 }
 
 #[test]
@@ -113,7 +113,7 @@ fn update_check_reports_a_newer_release() {
     assert_eq!(out.status.code(), Some(1), "{}", text(&out.stderr));
     let stdout = text(&out.stdout);
     assert!(
-        stdout.contains(&format!("sultrakey {NEWER} tersedia")),
+        stdout.contains(&format!("sultrakey {NEWER} is available")),
         "{stdout}"
     );
 
@@ -121,7 +121,7 @@ fn update_check_reports_a_newer_release() {
     let url = serve(release(current, b"same", None));
     let out = installed_cmd(&env, &url).args(["update"]).output().unwrap();
     assert_eq!(out.status.code(), Some(0));
-    assert!(text(&out.stdout).contains("sudah versi terbaru"));
+    assert!(text(&out.stdout).contains("is the latest version"));
 }
 
 #[test]
@@ -135,7 +135,7 @@ fn update_refuses_copies_outside_the_install_folder() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(64), "{}", text(&out.stderr));
-    assert!(text(&out.stderr).contains("bukan dari lokasi pasang"));
+    assert!(text(&out.stderr).contains("not from the install location"));
 }
 
 #[test]
@@ -150,7 +150,7 @@ fn update_refuses_a_bad_checksum_and_keeps_the_old_binary() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(1), "{}", text(&out.stderr));
-    assert!(text(&out.stderr).contains("dua checksum berbeda"));
+    assert!(text(&out.stderr).contains("two different checksums"));
     assert_eq!(std::fs::read(installed(&env)).unwrap(), before);
 }
 
@@ -167,7 +167,7 @@ fn update_replaces_the_installed_binary() {
         .output()
         .unwrap();
     assert_eq!(out.status.code(), Some(0), "{}", text(&out.stderr));
-    assert!(text(&out.stdout).contains(&format!("diperbarui ke sultrakey {NEWER}")));
+    assert!(text(&out.stdout).contains(&format!("updated to sultrakey {NEWER}")));
     let version = std::process::Command::new(installed(&env))
         .arg("--version")
         .output()
@@ -185,7 +185,7 @@ fn update_replaces_the_installed_binary() {
         .unwrap();
     assert_ne!(out.status.code(), Some(0));
     assert!(
-        text(&out.stderr).contains("menyebut dirinya"),
+        text(&out.stderr).contains("calls itself"),
         "{}",
         text(&out.stderr)
     );

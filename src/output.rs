@@ -19,7 +19,7 @@ pub fn caution(text: &str) -> String {
     paint("33", text)
 }
 
-/// `Enter   pakai nilai yang ada`: the key bold cyan, padded to `width` so a list of them
+/// `Enter   keep the current value`: the key bold cyan, padded to `width` so a list of them
 /// lines up, and what it does faint.
 pub fn key_hint(key: &str, what: &str, width: usize) -> String {
     format!(
@@ -85,11 +85,11 @@ pub fn warn(text: &str) {
     eprintln!("! {text}");
 }
 
-/// `✗ <problem>` and `Solusi: <command>` on stderr.
+/// `✗ <problem>` and `Fix: <command>` on stderr.
 pub fn issue(issue: &Issue) {
     eprintln!("✗ {}", issue.problem);
     if let Some(solution) = &issue.solution {
-        eprintln!("Solusi: {solution}");
+        eprintln!("Fix: {solution}");
     }
 }
 
@@ -116,7 +116,7 @@ pub fn report(err: &anyhow::Error) -> i32 {
         eprintln!("{abort}");
         return abort.exit_code();
     }
-    eprintln!("✗ Terjadi kesalahan: {err:#}");
+    eprintln!("✗ Error: {err:#}");
     1
 }
 
@@ -145,7 +145,7 @@ mod tests {
 
     #[test]
     fn report_uses_the_fail_code() {
-        let err = anyhow::Error::new(Fail::config("A kosong.", "sultrakey setup"));
+        let err = anyhow::Error::new(Fail::config("A is empty.", "sultrakey setup"));
         assert_eq!(report(&err), 78);
         assert_eq!(report(&anyhow::anyhow!("boom")), 1);
     }

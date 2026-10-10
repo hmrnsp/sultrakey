@@ -94,7 +94,7 @@ pub fn locate(facts: &Facts, app: &str, exists: impl Fn(&Path) -> bool) -> Resul
             custom: false,
         }),
         None => Err(Fail::other(
-            "Folder data aplikasi (%APPDATA%) tidak ditemukan.",
+            "The application data folder (%APPDATA%) was not found.",
         )),
     }
 }
@@ -113,7 +113,7 @@ pub fn read(path: &Path) -> Result<Identity, ReadError> {
         zeroize::Zeroizing::new(fs::read_to_string(path).map_err(|err| match err.kind() {
             io::ErrorKind::NotFound => ReadError::Missing,
             io::ErrorKind::PermissionDenied => ReadError::Denied,
-            io::ErrorKind::InvalidData => ReadError::Invalid("bukan file teks".into()),
+            io::ErrorKind::InvalidData => ReadError::Invalid("not a text file".into()),
             _ => ReadError::Io(err),
         })?);
     crypto::parse_identity_file(&text).map_err(ReadError::Invalid)
@@ -124,26 +124,22 @@ pub fn read(path: &Path) -> Result<Identity, ReadError> {
 pub fn read_fail(err: ReadError, path: &Path, missing_hint: &str) -> Fail {
     let shown = path.display();
     match err {
-        ReadError::Missing => {
-            Fail::config(format!("File kunci {shown} tidak ditemukan."), missing_hint)
-        }
+        ReadError::Missing => Fail::config(format!("Key file {shown} not found."), missing_hint),
         ReadError::Denied => {
-            let owner = system::owner_name(path).unwrap_or_else(|| "<pemilik-kunci>".into());
+            let owner = system::owner_name(path).unwrap_or_else(|| "<key-owner>".into());
             Fail::config(
-                format!("Tidak punya izin membaca file kunci {shown} (pemiliknya: {owner})."),
+                format!("No permission to read key file {shown} (owner: {owner})."),
                 format!(
-                    "jalankan sebagai user pemilik kunci, contoh: sudo -u {owner} sultrakey check \
-                     (di pm2/systemd/Docker: jalankan aplikasi sebagai user {owner})"
+                    "run as the user who owns the key, for example: sudo -u {owner} sultrakey check \
+                     (with pm2/systemd/Docker: run the application as user {owner})"
                 ),
             )
         }
         ReadError::Invalid(why) => Fail::config(
-            format!("File kunci {shown} rusak: {why}."),
-            "pulihkan file kunci dari backup",
+            format!("Key file {shown} is broken: {why}."),
+            "restore the key file from a backup",
         ),
-        ReadError::Io(err) => {
-            Fail::config_bare(format!("File kunci {shown} tidak bisa dibaca: {err}."))
-        }
+        ReadError::Io(err) => Fail::config_bare(format!("Key file {shown} cannot be read: {err}.")),
     }
 }
 
@@ -153,7 +149,7 @@ pub fn create(path: &Path, identity: &Identity, owner: Option<&Owner>) -> Result
     if let Some(dir) = path.parent().filter(|dir| !dir.as_os_str().is_empty())
         && !dir.exists()
     {
-        create_dir(dir).with_context(|| format!("tidak bisa membuat folder {}", dir.display()))?;
+        create_dir(dir).with_context(|| format!("cannot create the folder {}", dir.display()))?;
     }
     let contents = crypto::identity_file_text(identity, &time::now_rfc3339());
     let options = Options {
@@ -167,7 +163,7 @@ pub fn create(path: &Path, identity: &Identity, owner: Option<&Owner>) -> Result
         },
     };
     atomic::write_new(path, contents.as_bytes(), options)
-        .with_context(|| format!("tidak bisa menulis file kunci {}", path.display()))
+        .with_context(|| format!("cannot write the key file {}", path.display()))
 }
 
 #[cfg(unix)]

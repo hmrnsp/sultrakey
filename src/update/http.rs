@@ -51,10 +51,10 @@ impl Releases {
         let local_http = match base.strip_prefix("http://") {
             Some(rest) if is_loopback(rest) => true,
             Some(_) => {
-                bail!("{URL_ENV} harus alamat https:// (http:// hanya untuk komputer ini)")
+                bail!("{URL_ENV} must be an https:// address (http:// only for this computer)")
             }
             None if base.starts_with("https://") => false,
-            None => bail!("{URL_ENV} harus alamat https://"),
+            None => bail!("{URL_ENV} must be an https:// address"),
         };
         let mut config = Agent::config_builder()
             .https_only(!local_http)
@@ -80,7 +80,7 @@ impl Releases {
     pub fn latest_manifest(&self) -> Result<Vec<u8>> {
         let url = format!("{}/latest/download/manifest.json", self.base);
         self.get(&url, MANIFEST_LIMIT).map_err(|err| match err {
-            Failure::NotFound => anyhow!("belum ada rilis yang diterbitkan di {url}"),
+            Failure::NotFound => anyhow!("no release is published at {url} yet"),
             Failure::Other(err) => err,
         })
     }
@@ -90,7 +90,7 @@ impl Releases {
     pub fn asset(&self, version: Version, name: &str, limit: u64) -> Result<Vec<u8>> {
         let url = format!("{}/download/v{version}/{name}", self.base);
         self.get(&url, limit).map_err(|err| match err {
-            Failure::NotFound => anyhow!("rilis v{version} tidak punya file {name}"),
+            Failure::NotFound => anyhow!("release v{version} has no file {name}"),
             Failure::Other(err) => err,
         })
     }
@@ -103,7 +103,7 @@ impl Releases {
     fn get(&self, url: &str, limit: u64) -> Result<Vec<u8>, Failure> {
         let fail = |err: ureq::Error| match err {
             ureq::Error::StatusCode(404) => Failure::NotFound,
-            err => Failure::Other(explain(err).context(format!("tidak bisa mengunduh {url}"))),
+            err => Failure::Other(explain(err).context(format!("cannot download {url}"))),
         };
         let mut response = self.agent.get(url).call().map_err(fail)?;
         response
@@ -124,16 +124,16 @@ enum Failure {
 fn explain(err: ureq::Error) -> anyhow::Error {
     let hint = match &err {
         ureq::Error::Tls(_) | ureq::Error::Rustls(_) => {
-            "koneksi aman gagal; bila jaringan kantor memeriksa HTTPS dengan sertifikatnya sendiri, \
-             pasang sertifikat itu di sistem operasi, atau unduh binary manual lalu jalankan \
-             `sudo ./sultrakey install`"
+            "the secure connection failed; if the office network inspects HTTPS with its own \
+             certificate, install that certificate in the operating system, or download the binary \
+             by hand and run `sudo ./sultrakey install`"
         }
         ureq::Error::HostNotFound
         | ureq::Error::ConnectionFailed
         | ureq::Error::Timeout(_)
         | ureq::Error::Io(_)
         | ureq::Error::ConnectProxyFailed(_) => {
-            "periksa koneksi internet, atau set HTTPS_PROXY bila server memakai proxy"
+            "check the internet connection, or set HTTPS_PROXY if the server uses a proxy"
         }
         _ => return err.into(),
     };

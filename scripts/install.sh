@@ -1,12 +1,12 @@
 #!/bin/sh
-# Pasang sultrakey di Linux atau macOS.
+# Installs sultrakey on Linux or macOS.
 #
 #   Developer : curl -fsSL https://github.com/hmrnsp/sultrakey/releases/latest/download/install.sh | sh
 #   Server    : curl -fsSL https://github.com/hmrnsp/sultrakey/releases/latest/download/install.sh | sudo sh
-#   Versi tertentu: ... | SULTRAKEY_VERSION=0.1.0 sh
+#   A given version: ... | SULTRAKEY_VERSION=0.1.0 sh
 #
-# Skrip ini hanya mengunduh binary yang cocok, mencocokkan SHA256, lalu menjalankan
-# `sultrakey install`. Semua logika pasang ada di binary itu sendiri.
+# This script only downloads the matching binary, checks its SHA256, then runs
+# `sultrakey install`. All install logic lives in the binary itself.
 
 set -eu
 
@@ -20,7 +20,7 @@ fi
 fail() {
     printf '✗ %s\n' "$1" >&2
     if [ -n "${2:-}" ]; then
-        printf 'Solusi: %s\n' "$2" >&2
+        printf 'Fix: %s\n' "$2" >&2
     fi
     exit 1
 }
@@ -28,12 +28,12 @@ fail() {
 case "$(uname -s)" in
     Linux) os=unknown-linux-musl ;;
     Darwin) os=apple-darwin ;;
-    *) fail "Sistem $(uname -s) tidak didukung." "di Windows pakai install.ps1" ;;
+    *) fail "System $(uname -s) is not supported." "on Windows use install.ps1" ;;
 esac
 case "$(uname -m)" in
     x86_64 | amd64) arch=x86_64 ;;
     aarch64 | arm64) arch=aarch64 ;;
-    *) fail "CPU $(uname -m) tidak didukung." ;;
+    *) fail "CPU $(uname -m) is not supported." ;;
 esac
 name="sultrakey-$arch-$os"
 
@@ -53,7 +53,7 @@ if command -v curl >/dev/null 2>&1; then
 elif command -v wget >/dev/null 2>&1; then
     download() { wget -q -O "$2" "$1"; }
 else
-    fail "curl atau wget tidak ditemukan." "pasang salah satunya, contoh: sudo yum install -y curl"
+    fail "curl or wget not found." "install one of them, for example: sudo yum install -y curl"
 fi
 
 if command -v sha256sum >/dev/null 2>&1; then
@@ -61,22 +61,22 @@ if command -v sha256sum >/dev/null 2>&1; then
 elif command -v shasum >/dev/null 2>&1; then
     sha256() { shasum -a 256 "$1" | awk '{print $1}'; }
 else
-    fail "sha256sum atau shasum tidak ditemukan." "pasang coreutils"
+    fail "sha256sum or shasum not found." "install coreutils"
 fi
 
 tmp=$(mktemp -d 2>/dev/null || mktemp -d -t sultrakey)
 trap 'rm -rf "$tmp"' EXIT INT TERM
 
-echo "Mengunduh $name ..."
+echo "Downloading $name ..."
 download "$URL/$name" "$tmp/sultrakey" ||
-    fail "Gagal mengunduh $URL/$name." "periksa koneksi ke github.com, atau set HTTPS_PROXY bila server memakai proxy"
+    fail "Cannot download $URL/$name." "check the connection to github.com, or set HTTPS_PROXY if the server uses a proxy"
 download "$URL/SHA256SUMS" "$tmp/SHA256SUMS" ||
-    fail "Gagal mengunduh $URL/SHA256SUMS."
+    fail "Cannot download $URL/SHA256SUMS."
 
 expected=$(awk -v n="$name" '{ f = $2; sub(/^\*/, "", f); if (f == n) print tolower($1) }' "$tmp/SHA256SUMS")
-[ -n "$expected" ] || fail "SHA256SUMS tidak memuat $name."
+[ -n "$expected" ] || fail "SHA256SUMS does not list $name."
 actual=$(sha256 "$tmp/sultrakey")
-[ "$actual" = "$expected" ] || fail "Checksum $name tidak cocok; tidak ada yang dipasang." "ulangi beberapa saat lagi"
+[ "$actual" = "$expected" ] || fail "Checksum of $name does not match; nothing was installed." "try again in a moment"
 
 chmod +x "$tmp/sultrakey"
 "$tmp/sultrakey" install

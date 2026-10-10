@@ -28,14 +28,15 @@ pub fn install_dir(root: bool) -> Result<PathBuf> {
         return Ok(PathBuf::from(dir));
     }
     if cfg!(windows) {
-        let local = dirs::data_local_dir().context("folder data aplikasi lokal tidak ditemukan")?;
+        let local =
+            dirs::data_local_dir().context("the local application data folder was not found")?;
         Ok(local.join("Programs").join("sultrakey"))
     } else if root {
         Ok(PathBuf::from(SYSTEM_DIR))
     } else {
         dirs::executable_dir()
             .or_else(|| dirs::home_dir().map(|home| home.join(".local").join("bin")))
-            .context("folder ~/.local/bin tidak ditemukan")
+            .context("the ~/.local/bin folder was not found")
     }
 }
 
@@ -92,7 +93,7 @@ pub fn remove_from_path(user_path: &mut dyn UserPath, dir: &Path) -> Result<bool
 fn path_text(dir: &Path) -> Result<String> {
     dir.to_str()
         .map(str::to_string)
-        .ok_or_else(|| anyhow!("{} bukan teks yang valid", dir.display()))
+        .ok_or_else(|| anyhow!("{} is not valid text", dir.display()))
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -117,23 +118,17 @@ pub fn copy_exe(source: &Path, target: &Path) -> Result<Copied> {
     }
     remove_leftover(target);
     if let Some(dir) = target.parent() {
-        fs::create_dir_all(dir).with_context(|| format!("tidak bisa membuat {}", dir.display()))?;
+        fs::create_dir_all(dir).with_context(|| format!("cannot create {}", dir.display()))?;
     }
-    let bytes =
-        fs::read(source).with_context(|| format!("tidak bisa membaca {}", source.display()))?;
+    let bytes = fs::read(source).with_context(|| format!("cannot read {}", source.display()))?;
     let existed = target.exists();
     if let Err(err) = atomic::write(target, &bytes, EXECUTABLE) {
         if !(existed && err.kind() == io::ErrorKind::PermissionDenied) {
-            return Err(err).with_context(|| format!("tidak bisa menulis {}", target.display()));
+            return Err(err).with_context(|| format!("cannot write {}", target.display()));
         }
         fs::rename(target, old_path(target))
             .and_then(|()| atomic::write(target, &bytes, EXECUTABLE))
-            .with_context(|| {
-                format!(
-                    "tidak bisa mengganti {} (sedang dipakai?)",
-                    target.display()
-                )
-            })?;
+            .with_context(|| format!("cannot replace {} (in use?)", target.display()))?;
     }
     Ok(if existed {
         Copied::Replaced
@@ -156,7 +151,7 @@ pub fn remove_exe(target: &Path) -> Result<()> {
     } else {
         fs::remove_file(target)
     }
-    .with_context(|| format!("tidak bisa menghapus {}", target.display()))?;
+    .with_context(|| format!("cannot delete {}", target.display()))?;
     // Windows: the folder is sultrakey's own; remove it once empty. Never on Linux or
     // macOS, where /usr/bin and ~/.local/bin are shared.
     if cfg!(windows)
@@ -175,23 +170,22 @@ pub fn replace_exe(
     bytes: &[u8],
     check: impl FnOnce(&Path) -> Result<()>,
 ) -> Result<()> {
-    let dir = target.parent().context("file program tidak punya folder")?;
+    let dir = target.parent().context("the program file has no folder")?;
     remove_leftover(target);
     let mut staged = tempfile::Builder::new()
         .prefix(".sultrakey-update-")
         .suffix(env::consts::EXE_SUFFIX)
         .tempfile_in(dir)
-        .with_context(|| format!("tidak bisa menulis ke {}", dir.display()))?;
+        .with_context(|| format!("cannot write to {}", dir.display()))?;
     staged
         .write_all(bytes)
         .and_then(|()| staged.as_file().sync_all())
-        .with_context(|| format!("tidak bisa menulis ke {}", dir.display()))?;
+        .with_context(|| format!("cannot write to {}", dir.display()))?;
     // Closed before it runs: Linux refuses to start a file that is open for writing.
     let staged = staged.into_temp_path();
     make_executable(&staged)?;
     check(&staged)?;
-    swap_in(&staged, target)
-        .with_context(|| format!("tidak bisa mengganti {}", target.display()))?;
+    swap_in(&staged, target).with_context(|| format!("cannot replace {}", target.display()))?;
     // Renamed away: nothing left for the guard to delete.
     let _ = staged.keep();
     atomic::sync_dir(dir);
@@ -237,7 +231,7 @@ pub fn same_file(a: &Path, b: &Path) -> bool {
 fn make_executable(path: &Path) -> Result<()> {
     use std::os::unix::fs::PermissionsExt;
     fs::set_permissions(path, fs::Permissions::from_mode(0o755))
-        .with_context(|| format!("tidak bisa membuat {} bisa dijalankan", path.display()))
+        .with_context(|| format!("cannot make {} executable", path.display()))
 }
 
 #[cfg(not(unix))]

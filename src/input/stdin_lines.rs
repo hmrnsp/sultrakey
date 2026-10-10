@@ -1,5 +1,5 @@
 //! `setup` without a terminal (scripts, tests): one `KEY=value` per line on stdin.
-//! `KEY=@/lokasi/file` reads the file. The value is taken as is (no quotes, no escapes).
+//! `KEY=@/path/to/file` reads the file. The value is taken as is (no quotes, no escapes).
 
 use std::collections::HashSet;
 
@@ -18,21 +18,21 @@ pub fn parse(text: &str) -> Result<Vec<(String, Answer)>, Fail> {
         }
         let Some((key, value)) = line.split_once('=') else {
             return Err(Fail::usage(
-                format!("Baris {line_no} dari stdin bukan KEY=value."),
-                "kirim satu baris KEY=value per key, contoh: printf 'REDIS_HOST=10.0.0.5\\n' | sultrakey setup",
+                format!("Line {line_no} of stdin is not KEY=value."),
+                "send one KEY=value line per key, for example: printf 'REDIS_HOST=10.0.0.5\\n' | sultrakey setup",
             ));
         };
         let key = key.trim();
         if !valid_key(key) {
             return Err(Fail::usage(
-                format!("Baris {line_no} dari stdin: nama key '{key}' tidak valid."),
-                "pakai nama key persis seperti di .env.example",
+                format!("Line {line_no} of stdin: key name '{key}' is not valid."),
+                "use the key name exactly as in .env.example",
             ));
         }
         if !seen.insert(key.to_string()) {
             return Err(Fail::usage(
-                format!("{key} dikirim dua kali lewat stdin."),
-                "kirim setiap key satu kali saja",
+                format!("{key} was sent twice on stdin."),
+                "send each key only once",
             ));
         }
         out.push((key.to_string(), source::interpret(value)?));

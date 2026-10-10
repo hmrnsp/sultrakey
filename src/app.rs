@@ -34,7 +34,7 @@ fn clap_exit(err: &clap::Error) -> i32 {
     match err.kind() {
         ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => 0,
         _ => {
-            eprintln!("Solusi: sultrakey --help");
+            eprintln!("Fix: sultrakey --help");
             Code::Usage.exit_code()
         }
     }

@@ -40,19 +40,20 @@ pub fn parse_identity_file(text: &str) -> Result<Identity, String> {
         .map(str::trim)
         .filter(|line| !line.is_empty() && !line.starts_with('#'));
     let (Some(line), None) = (keys.next(), keys.next()) else {
-        return Err("harus berisi tepat satu kunci AGE-SECRET-KEY-1...".into());
+        return Err("must hold exactly one AGE-SECRET-KEY-1... key".into());
     };
-    Identity::from_str(line).map_err(|_| "bukan kunci age X25519 (AGE-SECRET-KEY-1...)".into())
+    Identity::from_str(line).map_err(|_| "not an age X25519 key (AGE-SECRET-KEY-1...)".into())
 }
 
 pub fn parse_recipient(text: &str) -> Result<Recipient, String> {
-    Recipient::from_str(text.trim()).map_err(|_| format!("'{}' bukan public key age", text.trim()))
+    Recipient::from_str(text.trim())
+        .map_err(|_| format!("'{}' is not an age public key", text.trim()))
 }
 
 /// Encrypts `plaintext` to `recipient`; returns the base64 text that follows `enc:`.
 pub fn encrypt(recipient: &Recipient, plaintext: &Secret) -> Result<String> {
     let ciphertext =
-        age::encrypt(recipient, plaintext.expose().as_bytes()).context("enkripsi gagal")?;
+        age::encrypt(recipient, plaintext.expose().as_bytes()).context("encryption failed")?;
     Ok(STANDARD.encode(ciphertext))
 }
 

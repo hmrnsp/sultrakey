@@ -56,7 +56,7 @@ impl Prompter for Terminal {
         match editor.readline_with_initial(label, (initial, "")) {
             Ok(line) => Ok(line),
             Err(ReadlineError::Interrupted) => Err(Abort::Cancelled.into()),
-            Err(ReadlineError::Eof) => bail!("input berakhir sebelum pertanyaan dijawab"),
+            Err(ReadlineError::Eof) => bail!("input ended before the question was answered"),
             Err(err) => Err(err.into()),
         }
     }
@@ -110,21 +110,21 @@ pub fn not_interactive_hint() -> Option<&'static str> {
     let mintty = env::var_os("TERM_PROGRAM").is_some_and(|t| t == "mintty");
     let git_bash = env::var_os("MSYSTEM").is_some();
     (cfg!(windows) && (mintty || git_bash)).then_some(
-        "jendela bawaan Git Bash (mintty) tidak bisa menampilkan pertanyaan; \
-         pakai Windows Terminal, PowerShell, atau cmd",
+        "the default Git Bash window (mintty) cannot show questions; \
+         use Windows Terminal, PowerShell, or cmd",
     )
 }
 
-/// `y`/`ya` or `n`/`tidak`; Enter takes `default`.
+/// `y`/`yes` or `n`/`no`; Enter takes `default`.
 pub fn confirm(prompter: &mut dyn Prompter, question: &str, default: bool) -> Result<bool> {
     let choices = if default { "[Y/n]" } else { "[y/N]" };
     loop {
         let reply = prompter.visible(&format!("{question} {choices} "), "")?;
         match reply.trim().to_lowercase().as_str() {
             "" => return Ok(default),
-            "y" | "ya" | "yes" => return Ok(true),
-            "n" | "t" | "tidak" | "no" => return Ok(false),
-            _ => prompter.alert("Jawab y (ya) atau n (tidak)."),
+            "y" | "yes" => return Ok(true),
+            "n" | "no" => return Ok(false),
+            _ => prompter.alert("Answer y (yes) or n (no)."),
         }
     }
 }
@@ -145,14 +145,14 @@ pub struct Question<'a> {
 pub fn general_keys(defaults: bool) -> Vec<(&'static str, &'static str)> {
     let mut keys = Vec::new();
     if defaults {
-        keys.push(("Enter", "pakai nilai yang ada"));
-        keys.push(("Backspace", "ubah"));
+        keys.push(("Enter", "keep the current value"));
+        keys.push(("Backspace", "edit"));
     }
     keys.push((
-        "@lokasi-file",
-        "value = ISI file itu (tanpa @, path disimpan apa adanya sebagai teks)",
+        "@file-path",
+        "value = the CONTENTS of that file (without @, the path is saved as text)",
     ));
-    keys.push(("Ctrl+C", "batal tanpa menyimpan"));
+    keys.push(("Ctrl+C", "cancel without saving"));
     keys
 }
 
@@ -174,13 +174,13 @@ pub fn ask(prompter: &mut dyn Prompter, question: &Question<'_>) -> Result<Reply
         prompter.note(&format!("{pad}{line}"));
     }
     if question.optional {
-        prompter.note(&format!("{pad}boleh dikosongkan"));
+        prompter.note(&format!("{pad}may be left empty"));
     }
     prompter.keys(pad, &general_keys(default.is_some()));
 
     // Both labels the same width, so the two rows of stars line up.
     let (label, again_label) = if question.masked {
-        (format!("{pad}›        "), format!("{pad}ulangi › "))
+        (format!("{pad}›        "), format!("{pad}repeat › "))
     } else {
         (format!("{pad}› "), String::new())
     };
@@ -200,7 +200,7 @@ pub fn ask(prompter: &mut dyn Prompter, question: &Question<'_>) -> Result<Reply
             if question.optional {
                 return Ok(Reply::Empty);
             }
-            prompter.alert(&format!("{pad}{key} wajib diisi."));
+            prompter.alert(&format!("{pad}{key} is required."));
             continue;
         }
         let answer = match source::interpret(typed.expose()) {
@@ -223,7 +223,7 @@ pub fn ask(prompter: &mut dyn Prompter, question: &Question<'_>) -> Result<Reply
                 if question.masked {
                     let again = prompter.masked(&again_label)?;
                     if again != typed {
-                        prompter.alert(&format!("{pad}Tidak sama. Ulangi."));
+                        prompter.alert(&format!("{pad}Not the same. Try again."));
                         continue;
                     }
                 }
@@ -282,7 +282,7 @@ pub mod tests {
     fn question(masked: bool, optional: bool, default: Option<&'static str>) -> Question<'static> {
         Question {
             key: "K",
-            help: vec!["Bantuan"],
+            help: vec!["Help"],
             masked,
             optional,
             default,
@@ -292,7 +292,7 @@ pub mod tests {
     fn value(reply: Reply) -> String {
         match reply {
             Reply::Value(secret, _) => secret.expose().to_string(),
-            Reply::Empty => "<kosong>".into(),
+            Reply::Empty => "<empty>".into(),
         }
     }
 
@@ -301,12 +301,12 @@ pub mod tests {
         let mut script = Script::new(&["abc", "abd", "abc", "abc"]);
         let reply = ask(&mut script, &question(true, false, None)).unwrap();
         assert_eq!(value(reply), "abc");
-        assert!(script.log.iter().any(|l| l.contains("Tidak sama")));
+        assert!(script.log.iter().any(|l| l.contains("Not the same")));
         assert!(
             script.log.iter().all(|l| !l.contains("abc")),
             "never echoed"
         );
-        assert!(script.log.iter().any(|l| l == "  Bantuan"));
+        assert!(script.log.iter().any(|l| l == "  Help"));
     }
 
     #[test]
@@ -335,14 +335,14 @@ pub mod tests {
             script
                 .log
                 .iter()
-                .any(|l| l.contains("pakai nilai yang ada"))
+                .any(|l| l.contains("keep the current value"))
         );
 
         // Cleared on a required key: asked again, prefilled again.
         let mut script = Script::new(&["", "3000"]);
         let reply = ask(&mut script, &question(false, false, Some("8899"))).unwrap();
         assert_eq!(value(reply), "3000");
-        assert!(script.log.iter().any(|l| l.contains("wajib diisi")));
+        assert!(script.log.iter().any(|l| l.contains("is required")));
         assert_eq!(
             script.log.iter().filter(|l| *l == "initial:8899").count(),
             2
@@ -367,20 +367,20 @@ pub mod tests {
         let mut script = Script::new(&["", "x", "x"]);
         let reply = ask(&mut script, &question(true, false, None)).unwrap();
         assert_eq!(value(reply), "x");
-        assert!(script.log.iter().any(|l| l.contains("wajib diisi")));
+        assert!(script.log.iter().any(|l| l.contains("is required")));
     }
 
     #[test]
     fn masked_keys_never_show_or_take_the_default() {
-        let mut script = Script::new(&["", "baru", "baru"]);
-        let reply = ask(&mut script, &question(true, false, Some("rahasia-bawaan"))).unwrap();
-        assert_eq!(value(reply), "baru");
-        assert!(script.log.iter().any(|l| l.contains("wajib diisi")));
+        let mut script = Script::new(&["", "new", "new"]);
+        let reply = ask(&mut script, &question(true, false, Some("default-secret"))).unwrap();
+        assert_eq!(value(reply), "new");
+        assert!(script.log.iter().any(|l| l.contains("is required")));
         assert!(
             script
                 .log
                 .iter()
-                .all(|l| !l.contains("rahasia-bawaan") && !l.starts_with("initial:")),
+                .all(|l| !l.contains("default-secret") && !l.starts_with("initial:")),
             "{:?}",
             script.log
         );
@@ -388,9 +388,9 @@ pub mod tests {
 
     #[test]
     fn an_unedited_default_is_taken_literally() {
-        let mut script = Script::new(&["@bukan-file"]);
-        let reply = ask(&mut script, &question(false, false, Some("@bukan-file"))).unwrap();
-        assert_eq!(reply, Reply::Value(Secret::from("@bukan-file"), None));
+        let mut script = Script::new(&["@not-a-file"]);
+        let reply = ask(&mut script, &question(false, false, Some("@not-a-file"))).unwrap();
+        assert_eq!(reply, Reply::Value(Secret::from("@not-a-file"), None));
     }
 
     #[test]
@@ -402,7 +402,7 @@ pub mod tests {
         let mut script = Script::new(&["@/does/not/exist", &at]);
         let reply = ask(&mut script, &question(true, false, None)).unwrap();
         assert_eq!(reply, Reply::Value(Secret::from("A\nB"), Some(path)));
-        assert!(script.log.iter().any(|l| l.contains("tidak ditemukan")));
+        assert!(script.log.iter().any(|l| l.contains("not found")));
         assert_eq!(
             script
                 .log
@@ -422,10 +422,19 @@ pub mod tests {
 
     #[test]
     fn confirmations() {
-        let mut script = Script::new(&["", "maybe", "ya"]);
-        assert!(confirm(&mut script, "Lanjut?", true).unwrap());
-        assert!(confirm(&mut script, "Lanjut?", false).unwrap());
-        let mut script = Script::new(&["n"]);
-        assert!(!confirm(&mut script, "Lanjut?", true).unwrap());
+        let mut script = Script::new(&["", "maybe", "ya", "yes"]);
+        assert!(confirm(&mut script, "Continue?", true).unwrap());
+        assert!(confirm(&mut script, "Continue?", false).unwrap());
+        let refused = |script: &Script| {
+            script
+                .log
+                .iter()
+                .filter(|l| *l == "Answer y (yes) or n (no).")
+                .count()
+        };
+        assert_eq!(refused(&script), 2, "\"ya\" is not an answer");
+        let mut script = Script::new(&["tidak", "n"]);
+        assert!(!confirm(&mut script, "Continue?", true).unwrap());
+        assert_eq!(refused(&script), 1, "\"tidak\" is not an answer");
     }
 }

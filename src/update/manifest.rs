@@ -31,10 +31,11 @@ pub struct FileEntry {
 
 impl Manifest {
     pub fn parse(json: &[u8]) -> Result<Self> {
-        let manifest: Self = serde_json::from_slice(json).context("manifest rilis tidak valid")?;
+        let manifest: Self =
+            serde_json::from_slice(json).context("the release manifest is not valid")?;
         if manifest.name != APP_NAME {
             bail!(
-                "manifest rilis bukan milik {APP_NAME} ('{}')",
+                "the release manifest is not for {APP_NAME} ('{}')",
                 manifest.name
             );
         }
@@ -42,9 +43,12 @@ impl Manifest {
     }
 
     pub fn version(&self) -> Result<Version> {
-        self.version
-            .parse()
-            .with_context(|| format!("manifest rilis berisi versi yang salah '{}'", self.version))
+        self.version.parse().with_context(|| {
+            format!(
+                "the release manifest has a wrong version '{}'",
+                self.version
+            )
+        })
     }
 
     /// The binary for `target`, with a checked name and digest.
@@ -52,13 +56,13 @@ impl Manifest {
         let mut found = self.files.iter().filter(|file| file.target == target);
         let file = match (found.next(), found.next()) {
             (Some(one), None) => one.clone(),
-            (None, _) => bail!("rilis terbaru tidak punya binary untuk sistem ini ({target})"),
-            (Some(_), Some(_)) => bail!("rilis terbaru punya beberapa binary untuk {target}"),
+            (None, _) => bail!("the latest release has no binary for this system ({target})"),
+            (Some(_), Some(_)) => bail!("the latest release has several binaries for {target}"),
         };
         check_file_name(&file.name)?;
         if !is_sha256_hex(&file.sha256) {
             bail!(
-                "manifest rilis berisi checksum yang salah untuk {}",
+                "the release manifest has a wrong checksum for {}",
                 file.name
             );
         }
@@ -81,7 +85,7 @@ fn check_file_name(name: &str) -> Result<()> {
             .bytes()
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-'));
     if !plain {
-        bail!("manifest rilis berisi nama file yang tidak wajar '{name}'");
+        bail!("the release manifest has an unusual file name '{name}'");
     }
     Ok(())
 }
@@ -111,7 +115,7 @@ mod tests {
         assert_eq!(linux.sha256, SUM);
         assert!(m.file_for("x86_64-pc-windows-msvc").is_ok());
         let err = m.file_for("riscv64").unwrap_err().to_string();
-        assert!(err.contains("tidak punya binary"), "{err}");
+        assert!(err.contains("has no binary"), "{err}");
     }
 
     #[test]

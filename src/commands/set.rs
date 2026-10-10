@@ -1,4 +1,4 @@
-//! `set <KEY> [--stdin | --file <lokasi>]`: replaces one value. Never from a command-line
+//! `set <KEY> [--stdin | --file <path>]`: replaces one value. Never from a command-line
 //! argument, which would show up in `ps` and shell history.
 
 use std::path::Path;
@@ -23,9 +23,9 @@ pub fn run(ctx: &Ctx, key: &str, stdin: bool, file: Option<&Path>) -> Result<i32
     let recipient = recipient(ctx, &header)?;
     let Some(entry) = doc.get(key) else {
         return Err(Fail::usage(
-            format!("{key} tidak ada di {}.", ctx.env.display()),
+            format!("{key} is not in {}.", ctx.env.display()),
             format!(
-                "tambahkan {key} ke {}, lalu jalankan {}",
+                "add {key} to {}, then run {}",
                 ctx.template.display(),
                 ctx.cmd("setup")
             ),
@@ -44,7 +44,7 @@ pub fn run(ctx: &Ctx, key: &str, stdin: bool, file: Option<&Path>) -> Result<i32
         Some(source::read_file(file)?)
     } else {
         require_terminal(&format!(
-            "{} --stdin, atau {} --file <lokasi>",
+            "{} --stdin, or {} --file <path>",
             ctx.cmd(&format!("set {key}")),
             ctx.cmd(&format!("set {key}"))
         ))?;
@@ -75,8 +75,8 @@ pub fn run(ctx: &Ctx, key: &str, stdin: bool, file: Option<&Path>) -> Result<i32
         _ if flags.optional => Value::Empty,
         _ => {
             return Err(Fail::usage(
-                format!("{key} wajib diisi; value kosong tidak disimpan."),
-                "isi dengan value yang benar",
+                format!("{key} is required; an empty value is not saved."),
+                "enter the right value",
             )
             .into());
         }
@@ -85,9 +85,9 @@ pub fn run(ctx: &Ctx, key: &str, stdin: bool, file: Option<&Path>) -> Result<i32
         entry.value = new_value;
     }
     write_env(ctx, &doc, FileOwner::Keep)?;
-    output::ok(&format!("{key} diperbarui."));
+    output::ok(&format!("{key} updated."));
     if let Some(file) = used_file {
-        output::warn(&format!("Hapus file {} sekarang.", file.display()));
+        output::warn(&format!("Delete the file {} now.", file.display()));
     }
     Ok(0)
 }

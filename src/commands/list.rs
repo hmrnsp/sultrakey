@@ -9,7 +9,7 @@ pub fn run(ctx: &Ctx) -> Result<i32> {
     let doc = load_env(ctx)?;
     if doc.header.is_none() {
         output::warn(&format!(
-            "{} belum dikelola sultrakey (tidak ada baris SULTRAKEY_APP).",
+            "{} is not managed by sultrakey yet (no SULTRAKEY_APP line).",
             ctx.env.display()
         ));
     }
@@ -18,7 +18,7 @@ pub fn run(ctx: &Ctx) -> Result<i32> {
         .map(|entry| (entry.key.as_str(), entry.status().label()))
         .collect();
     if rows.is_empty() {
-        output::info("Tidak ada key.");
+        output::info("No keys.");
         return Ok(0);
     }
     let width = rows

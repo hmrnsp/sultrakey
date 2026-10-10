@@ -24,8 +24,8 @@ pub fn interpret(input: &str) -> Result<Answer, Fail> {
         let path = path.trim();
         if path.is_empty() {
             return Err(Fail::usage(
-                "Lokasi file kosong setelah tanda @.",
-                "tulis lokasinya, contoh: @/tmp/cert.pem",
+                "No file path after the @.",
+                "write the path, for example: @/tmp/cert.pem",
             ));
         }
         return Ok(Answer::File(PathBuf::from(path)));
@@ -50,13 +50,16 @@ pub fn resolve(answer: Answer) -> Result<Secret, Fail> {
 pub fn read_file(path: &Path) -> Result<Secret, Fail> {
     let bytes = Zeroizing::new(fs::read(path).map_err(|err| {
         let problem = match err.kind() {
-            io::ErrorKind::NotFound => format!("File {} tidak ditemukan.", path.display()),
+            io::ErrorKind::NotFound => format!("File {} not found.", path.display()),
             io::ErrorKind::PermissionDenied => {
-                format!("Tidak punya izin membaca file {}.", path.display())
+                format!("No permission to read the file {}.", path.display())
             }
-            _ => format!("File {} tidak bisa dibaca: {err}.", path.display()),
+            _ => format!("File {} cannot be read: {err}.", path.display()),
         };
-        Fail::usage(problem, "periksa lokasi dan izin file, lalu ulangi")
+        Fail::usage(
+            problem,
+            "check the path and the file permissions, then try again",
+        )
     })?);
     let text = std::str::from_utf8(&bytes).map_err(|_| not_text(path))?;
     let text = text
@@ -73,10 +76,10 @@ pub fn read_file(path: &Path) -> Result<Secret, Fail> {
 fn not_text(path: &Path) -> Fail {
     Fail::usage(
         format!(
-            "File {} bukan teks (data biner tidak bisa dimasukkan ke environment).",
+            "File {} is not text (binary data cannot go into the environment).",
             path.display()
         ),
-        "simpan isinya sebagai teks, misalnya base64, lalu ulangi",
+        "store its contents as text, for example base64, then try again",
     )
 }
 
@@ -84,8 +87,8 @@ fn not_text(path: &Path) -> Fail {
 pub fn check_text(text: &Secret, what: &str) -> Result<(), Fail> {
     if text.expose().contains('\0') {
         return Err(Fail::usage(
-            format!("{what} berisi karakter NUL yang tidak bisa dimasukkan ke environment."),
-            "hapus karakter itu, lalu ulangi",
+            format!("{what} contains a NUL character, which cannot go into the environment."),
+            "remove that character, then try again",
         ));
     }
     Ok(())
@@ -143,7 +146,7 @@ mod tests {
         assert!(read("e", b"\xff\xfe").is_err());
         assert!(read("f", b"a\0b").is_err());
         let missing = read_file(&dir.path().join("missing")).unwrap_err();
-        assert!(missing.to_string().contains("tidak ditemukan"), "{missing}");
+        assert!(missing.to_string().contains("not found"), "{missing}");
     }
 
     #[test]

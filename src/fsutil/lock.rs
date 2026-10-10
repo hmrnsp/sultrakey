@@ -34,7 +34,7 @@ impl FileLock {
             }
             if started.elapsed() >= timeout {
                 return Err(Fail::other(format!(
-                    "Proses sultrakey lain sedang mengubah {}. Tunggu sebentar lalu ulangi.",
+                    "Another sultrakey process is changing {}. Wait a moment, then try again.",
                     path.display()
                 ))
                 .into());
@@ -47,12 +47,12 @@ impl FileLock {
     pub fn try_acquire(path: &Path) -> Result<Option<Self>> {
         let lock_path = lock_path(path);
         let file = open(&lock_path)
-            .with_context(|| format!("tidak bisa membuka file lock {}", lock_path.display()))?;
+            .with_context(|| format!("cannot open the lock file {}", lock_path.display()))?;
         match file.try_lock() {
             Ok(()) => Ok(Some(Self { _file: file })),
             Err(TryLockError::WouldBlock) => Ok(None),
             Err(TryLockError::Error(err)) => {
-                Err(err).with_context(|| format!("tidak bisa mengunci {}", lock_path.display()))
+                Err(err).with_context(|| format!("cannot lock {}", lock_path.display()))
             }
         }
     }
@@ -96,7 +96,7 @@ mod tests {
         let started = Instant::now();
         let err = FileLock::acquire(&path, Duration::from_millis(120)).unwrap_err();
         assert!(started.elapsed() >= Duration::from_millis(120));
-        assert!(err.to_string().contains("sedang mengubah"), "{err}");
+        assert!(err.to_string().contains("is changing"), "{err}");
 
         drop(held);
         assert!(FileLock::try_acquire(&path).unwrap().is_some());

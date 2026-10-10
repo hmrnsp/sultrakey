@@ -51,20 +51,20 @@ fn detect(exe: &Path, root: bool) -> Channel {
 fn how_to_update(channel: &Channel) -> String {
     match channel {
         Channel::Installed(path) if path.starts_with(install::SYSTEM_DIR) => {
-            "jalankan `sudo sultrakey update`".into()
+            "run `sudo sultrakey update`".into()
         }
-        Channel::Installed(_) => "jalankan `sultrakey update`".into(),
-        Channel::NeedsRoot(_) => "jalankan `sudo sultrakey update`".into(),
+        Channel::Installed(_) => "run `sultrakey update`".into(),
+        Channel::NeedsRoot(_) => "run `sudo sultrakey update`".into(),
         Channel::Unknown(_) => {
-            "unduh binary terbaru, lalu jalankan `sudo ./sultrakey install` (Windows: `.\\sultrakey.exe install`), \
-             atau jalankan lagi skrip pasang"
+            "download the latest binary, then run `sudo ./sultrakey install` (Windows: `.\\sultrakey.exe install`), \
+             or run the install script again"
                 .into()
         }
     }
 }
 
 pub fn run(check: bool, yes: bool) -> Result<i32> {
-    let exe = env::current_exe().context("file program ini tidak ditemukan")?;
+    let exe = env::current_exe().context("cannot find this program's file")?;
     let channel = detect(&exe, system::is_root());
 
     let releases = Releases::from_env()?;
@@ -72,21 +72,21 @@ pub fn run(check: bool, yes: bool) -> Result<i32> {
     let latest = manifest.version()?;
     let current = Version::current();
     if latest == current {
-        output::ok(&format!("sultrakey {current} sudah versi terbaru."));
+        output::ok(&format!("sultrakey {current} is the latest version."));
         return Ok(0);
     }
     if latest < current {
         output::info(&format!(
-            "sultrakey {current} lebih baru dari rilis terakhir ({latest}); tidak ada yang dilakukan."
+            "sultrakey {current} is newer than the latest release ({latest}); nothing to do."
         ));
         return Ok(0);
     }
     output::info(&format!(
-        "sultrakey {latest} tersedia (terpasang: {current}): {}",
+        "sultrakey {latest} is available (installed: {current}): {}",
         releases.page(latest)
     ));
     if check {
-        output::info(&format!("Untuk memperbarui: {}", how_to_update(&channel)));
+        output::info(&format!("To update: {}", how_to_update(&channel)));
         return Ok(1);
     }
 
@@ -94,7 +94,7 @@ pub fn run(check: bool, yes: bool) -> Result<i32> {
         Channel::Installed(path) => path.clone(),
         Channel::NeedsRoot(path) => {
             return Err(Fail::usage(
-                format!("Butuh hak root untuk mengganti {}.", path.display()),
+                format!("Replacing {} needs root.", path.display()),
                 "sudo sultrakey update",
             )
             .into());
@@ -102,7 +102,7 @@ pub fn run(check: bool, yes: bool) -> Result<i32> {
         Channel::Unknown(path) => {
             return Err(Fail::usage(
                 format!(
-                    "sultrakey ini berjalan dari {}, bukan dari lokasi pasang, jadi tidak diganti.",
+                    "This sultrakey runs from {}, not from the install location, so it is not replaced.",
                     path.display()
                 ),
                 how_to_update(&channel),
@@ -111,43 +111,43 @@ pub fn run(check: bool, yes: bool) -> Result<i32> {
         }
     };
     let Some(triple) = RELEASE_TARGET else {
-        bail!("tidak ada binary sultrakey yang dirilis untuk sistem ini");
+        bail!("no sultrakey binary is released for this system");
     };
     let file = manifest.file_for(triple)?;
 
     if !yes {
-        require_terminal("sultrakey update -y (tanpa konfirmasi)")?;
-        let question = format!("Perbarui {} ke {latest}?", target.display());
+        require_terminal("sultrakey update -y (no confirmation)")?;
+        let question = format!("Update {} to {latest}?", target.display());
         if !prompt::confirm(&mut Terminal, &question, true)? {
             return Err(Abort::Cancelled.into());
         }
     }
 
-    output::info(&format!("Mengunduh {}", file.name));
+    output::info(&format!("Downloading {}", file.name));
     let bytes = releases.asset(latest, &file.name, BINARY_LIMIT)?;
     let sums = releases.asset(latest, "SHA256SUMS", SUMS_LIMIT)?;
     let listed = sum_for(&String::from_utf8_lossy(&sums), &file.name).with_context(|| {
         format!(
-            "SHA256SUMS tidak memuat {}; tidak ada yang diubah",
+            "SHA256SUMS does not list {}; nothing was changed",
             file.name
         )
     })?;
     if listed != file.sha256 {
         bail!(
-            "rilis mencantumkan dua checksum berbeda untuk {}; tidak ada yang diubah",
+            "the release lists two different checksums for {}; nothing was changed",
             file.name
         );
     }
     checksum::verify(&bytes, &listed, &file.name)?;
     install::replace_exe(&target, &bytes, |staged| reports_version(staged, latest))
-        .context("tidak ada yang diubah")?;
+        .context("nothing was changed")?;
 
     output::ok(&format!(
-        "{} diperbarui ke sultrakey {latest}.",
+        "{} updated to sultrakey {latest}.",
         target.display()
     ));
     output::info(
-        "Aplikasi yang sedang berjalan tidak terganggu; versi baru dipakai saat aplikasi di-restart berikutnya.",
+        "Running applications are not affected; they use the new version from their next restart.",
     );
     Ok(0)
 }
@@ -160,11 +160,11 @@ fn reports_version(exe: &Path, expected: Version) -> Result<()> {
         .stdin(Stdio::null())
         .stderr(Stdio::null())
         .output()
-        .context("binary yang diunduh tidak bisa berjalan di sistem ini")?;
+        .context("the downloaded binary cannot run on this system")?;
     let printed = String::from_utf8_lossy(&output.stdout);
     let printed = printed.trim();
     if !output.status.success() || printed != format!("sultrakey {expected}") {
-        bail!("binary yang diunduh menyebut dirinya '{printed}', bukan 'sultrakey {expected}'");
+        bail!("the downloaded binary calls itself '{printed}', not 'sultrakey {expected}'");
     }
     Ok(())
 }

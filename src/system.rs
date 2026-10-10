@@ -56,8 +56,8 @@ mod unix {
         };
         let unknown_user = || {
             Fail::usage(
-                format!("User '{user_part}' tidak ditemukan di server ini."),
-                "buat dulu user aplikasinya (useradd), atau tulis angka uid:gid, contoh: --owner 1001:1001",
+                format!("User '{user_part}' not found on this server."),
+                "create the application user first (useradd), or give numbers uid:gid, for example: --owner 1001:1001",
             )
         };
         let (uid, default_gid) = if let Ok(uid) = user_part.parse::<u32>() {
@@ -82,15 +82,15 @@ mod unix {
                     .map(|group| group.gid.as_raw())
                     .ok_or_else(|| {
                         Fail::usage(
-                            format!("Group '{group}' tidak ditemukan di server ini."),
-                            "periksa nama group, atau tulis angka uid:gid",
+                            format!("Group '{group}' not found on this server."),
+                            "check the group name, or give numbers uid:gid",
                         )
                     })?,
             },
             None => default_gid.ok_or_else(|| {
                 Fail::usage(
-                    format!("uid {uid} tidak punya group bawaan."),
-                    format!("tulis groupnya juga, contoh: --owner {uid}:{uid}"),
+                    format!("uid {uid} has no primary group."),
+                    format!("give the group too, for example: --owner {uid}:{uid}"),
                 )
             })?,
         };
@@ -142,8 +142,8 @@ mod windows {
 
     pub fn resolve_owner(_spec: &str) -> Result<Owner, Fail> {
         Err(Fail::usage(
-            "--owner tidak dipakai di Windows.",
-            "jalankan tanpa --owner",
+            "--owner is not used on Windows.",
+            "run without --owner",
         ))
     }
 

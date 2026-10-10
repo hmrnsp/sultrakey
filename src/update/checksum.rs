@@ -13,8 +13,8 @@ pub fn verify(bytes: &[u8], expected: &str, name: &str) -> Result<()> {
     let actual = sha256_hex(bytes);
     if actual != expected {
         bail!(
-            "{name} bukan file yang diterbitkan (SHA-256 {actual}, seharusnya {expected}); \
-             tidak ada yang diubah"
+            "{name} is not the published file (SHA-256 {actual}, expected {expected}); \
+             nothing was changed"
         );
     }
     Ok(())
@@ -31,6 +31,6 @@ mod tests {
         assert_eq!(sha256_hex(b""), EMPTY);
         assert!(verify(b"", EMPTY, "a").is_ok());
         let err = verify(b"x", EMPTY, "a").unwrap_err().to_string();
-        assert!(err.contains("bukan file yang diterbitkan"), "{err}");
+        assert!(err.contains("is not the published file"), "{err}");
     }
 }

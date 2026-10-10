@@ -29,11 +29,11 @@ pub struct Field {
     pub key: String,
     /// Comment lines from the template.
     pub help: Vec<String>,
-    /// Typed as stars and twice (RAHASIA) instead of visibly and once (TERLIHAT).
+    /// Typed as stars and twice (SECRET) instead of visibly and once (VISIBLE).
     pub masked: bool,
-    /// Stored as is (POLOS) instead of encrypted (TERENKRIPSI).
+    /// Stored as is (PLAIN) instead of encrypted (ENCRYPTED).
     pub plain: bool,
-    /// May be left empty (OPSIONAL) instead of required (WAJIB).
+    /// May be left empty (OPTIONAL) instead of required (REQUIRED).
     pub optional: bool,
     /// The template's value, prefilled. Always `None` for masked keys.
     pub default: Option<String>,
@@ -48,7 +48,7 @@ pub enum Mode {
     Repeat,
     /// All answers, before saving.
     Review { save: bool, scroll: u16 },
-    /// "Batal tanpa menyimpan?"
+    /// "Cancel without saving?"
     ConfirmCancel { back: Back },
     /// The legend of labels and keys.
     Help { back: Back },
@@ -153,7 +153,7 @@ impl Form {
             Mode::Review { save, scroll } => self.review_key(key, save, scroll),
             Mode::ConfirmCancel { back } => match key.code {
                 KeyCode::Char('y' | 'Y') => Step::Cancel,
-                KeyCode::Char('n' | 'N' | 't' | 'T') | KeyCode::Esc | KeyCode::Enter => {
+                KeyCode::Char('n' | 'N') | KeyCode::Esc | KeyCode::Enter => {
                     self.mode = back.mode();
                     Step::Continue
                 }
@@ -233,8 +233,8 @@ impl Form {
         let text = source::strip_one_newline(text);
         if text.contains(['\n', '\r']) {
             self.problem = Some(
-                "Teks yang ditempel berisi beberapa baris. Untuk value banyak baris, \
-                 simpan ke file lalu ketik @lokasi-file."
+                "The pasted text has several lines. For a multi-line value, \
+                 save it to a file, then type @file-path."
                     .into(),
             );
             return;
@@ -323,7 +323,7 @@ impl Form {
             if field.optional {
                 return self.store(Reply::Empty);
             }
-            return self.reject(format!("{} wajib diisi.", field.key));
+            return self.reject(format!("{} is required.", field.key));
         }
         let answer = match source::interpret(typed.expose()) {
             Ok(answer) => answer,
@@ -357,7 +357,7 @@ impl Form {
                 self.input.clear();
                 self.again.clear();
                 self.mode = Mode::Edit;
-                self.reject("Tidak sama. Ketik ulang dari awal.".into())
+                self.reject("Not the same. Type it again from the start.".into())
             }
         }
     }
@@ -380,7 +380,7 @@ impl Form {
         }
         let field = self.field();
         if self.mode == Mode::Repeat {
-            return Status::Hint("Ketik sekali lagi, harus sama.".into());
+            return Status::Hint("Type it once more; it must be the same.".into());
         }
         // The template's value is taken literally, so an `@` in it names no file.
         let unedited = field.default.as_deref() == Some(self.input.text());
@@ -396,13 +396,13 @@ impl Form {
         let answered = self.answers[self.selected].is_some();
         let hint = match &field.default {
             _ if field.masked && answered => {
-                "Sudah diisi. Enter = tetap, atau ketik ulang untuk mengganti.".to_string()
+                "Already filled. Enter = keep, or type a new value to replace it.".to_string()
             }
             Some(default) if self.input.text() == default => {
-                format!("Enter = pakai {default} · Backspace = ubah")
+                format!("Enter = use {default} · Backspace = edit")
             }
-            _ if field.optional => "Boleh dikosongkan: hapus isinya, lalu Enter.".to_string(),
-            _ => "Ketik @lokasi-file untuk mengisi dari file.".to_string(),
+            _ if field.optional => "May be left empty: clear it, then press Enter.".to_string(),
+            _ => "Type @file-path to fill it from a file.".to_string(),
         };
         Status::Hint(hint)
     }
@@ -431,31 +431,33 @@ fn file_path(typed: &str) -> Option<&str> {
 
 fn probe(path: &str) -> Result<String, String> {
     if path.is_empty() {
-        return Err("Tulis lokasi file setelah @.".into());
+        return Err("Write the file path after the @.".into());
     }
     let meta = match fs::metadata(path) {
         Ok(meta) => meta,
         Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-            return Err("✗ File tidak ditemukan.".into());
+            return Err("✗ File not found.".into());
         }
-        Err(_) => return Err("✗ File tidak bisa dibuka.".into()),
+        Err(_) => return Err("✗ The file cannot be opened.".into()),
     };
     if meta.is_dir() {
-        return Err("✗ Itu folder, bukan file.".into());
+        return Err("✗ That is a folder, not a file.".into());
     }
     if !meta.is_file() {
-        return Err("✗ Bukan file biasa.".into());
+        return Err("✗ Not a regular file.".into());
     }
     if meta.len() > PROBE_LIMIT {
         return Ok(format!(
-            "✓ File ditemukan ({} KB). Isinya dipakai.",
+            "✓ File found ({} KB). Its contents are used.",
             meta.len() / 1024
         ));
     }
     match source::read_file(&PathBuf::from(path)) {
         Ok(value) => {
             let lines = value.expose().lines().count().max(1);
-            Ok(format!("✓ File ditemukan ({lines} baris). Isinya dipakai."))
+            Ok(format!(
+                "✓ File found ({lines} lines). Its contents are used."
+            ))
         }
         Err(fail) => Err(format!("✗ {fail}")),
     }
@@ -589,7 +591,7 @@ mod tests {
     pub fn field(key: &str, masked: bool, optional: bool, default: Option<&str>) -> Field {
         Field {
             key: key.into(),
-            help: vec![format!("Bantuan {key}")],
+            help: vec![format!("Help for {key}")],
             masked,
             plain: false,
             optional,
@@ -623,8 +625,8 @@ mod tests {
     fn value(reply: &Option<Reply>) -> String {
         match reply {
             Some(Reply::Value(secret, _)) => secret.expose().to_string(),
-            Some(Reply::Empty) => "<kosong>".into(),
-            None => "<belum>".into(),
+            Some(Reply::Empty) => "<empty>".into(),
+            None => "<unanswered>".into(),
         }
     }
 
@@ -658,7 +660,7 @@ mod tests {
         assert_eq!(form.mode, Mode::Repeat);
         answer(&mut form, "abd");
         assert_eq!(form.mode, Mode::Edit);
-        assert!(matches!(form.status(), Status::Problem(p) if p.contains("Tidak sama")));
+        assert!(matches!(form.status(), Status::Problem(p) if p.contains("Not the same")));
         assert!(form.input.is_empty(), "both typings start over");
         answer(&mut form, "abc");
         answer(&mut form, "abc");
@@ -674,7 +676,7 @@ mod tests {
         ]);
         press(&mut form, KeyCode::Enter);
         assert_eq!(form.selected, 0);
-        assert!(matches!(form.status(), Status::Problem(p) if p == "A wajib diisi."));
+        assert!(matches!(form.status(), Status::Problem(p) if p == "A is required."));
         answer(&mut form, "x");
         assert_eq!(
             form.input.text(),
@@ -688,10 +690,10 @@ mod tests {
 
     #[test]
     fn prefilled_defaults_are_editable_and_taken_literally() {
-        let mut form = Form::new(vec![field("A", false, false, Some("@bukan-file"))]);
-        assert!(matches!(form.status(), Status::Hint(h) if h.contains("Enter = pakai")));
+        let mut form = Form::new(vec![field("A", false, false, Some("@not-a-file"))]);
+        assert!(matches!(form.status(), Status::Hint(h) if h.contains("Enter = use")));
         press(&mut form, KeyCode::Enter);
-        assert_eq!(value(&form.answers[0]), "@bukan-file");
+        assert_eq!(value(&form.answers[0]), "@not-a-file");
 
         let mut form = Form::new(vec![field("PORT", false, false, Some("8899"))]);
         press(&mut form, KeyCode::Backspace);
@@ -712,7 +714,7 @@ mod tests {
         press(&mut form, KeyCode::Up);
         assert_eq!(form.selected, 0);
         assert!(form.input.is_empty(), "a typed secret is never put back");
-        assert!(matches!(form.status(), Status::Hint(h) if h.starts_with("Sudah diisi")));
+        assert!(matches!(form.status(), Status::Hint(h) if h.starts_with("Already filled")));
         press(&mut form, KeyCode::Enter);
         assert_eq!(form.selected, 1, "Enter keeps the answer");
         assert_eq!(value(&form.answers[0]), "s3cret");
@@ -761,13 +763,13 @@ mod tests {
             &mut form,
             &format!("@{}", dir.path().join("nope").display()),
         );
-        assert!(matches!(form.status(), Status::Problem(p) if p.contains("tidak ditemukan")));
+        assert!(matches!(form.status(), Status::Problem(p) if p.contains("not found")));
         ctrl(&mut form, 'u');
         typed(&mut form, &format!("@{}", dir.path().display()));
         assert!(matches!(form.status(), Status::Problem(p) if p.contains("folder")));
         ctrl(&mut form, 'u');
         typed(&mut form, &format!("@{}", path.display()));
-        assert!(matches!(form.status(), Status::FileOk(t) if t.contains("2 baris")));
+        assert!(matches!(form.status(), Status::FileOk(t) if t.contains("2 lines")));
 
         press(&mut form, KeyCode::Enter);
         assert_eq!(
@@ -793,7 +795,7 @@ mod tests {
         assert_eq!(form.input.text(), "abc");
         form.handle(Event::Paste("x\ny".into()));
         assert_eq!(form.input.text(), "abc");
-        assert!(matches!(form.status(), Status::Problem(p) if p.contains("@lokasi-file")));
+        assert!(matches!(form.status(), Status::Problem(p) if p.contains("@file-path")));
     }
 
     #[test]

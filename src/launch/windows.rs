@@ -41,7 +41,9 @@ pub fn spawn(program: &OsString, args: &[OsString], env: &ChildEnv) -> Result<i3
         SetConsoleCtrlHandler(None, 1);
     }
 
-    let status = child.wait().context("gagal menunggu aplikasi selesai")?;
+    let status = child
+        .wait()
+        .context("failed to wait for the application to finish")?;
     Ok(status.code().unwrap_or(1))
 }
 

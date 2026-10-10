@@ -30,7 +30,7 @@ pub fn inspect(ctx: &Ctx) -> Result<Opened, Fail> {
     if let Ok(Some(mode)) = system::open_to_others(&key_path) {
         issues.push(Issue::new(
             format!(
-                "Izin file kunci {} terlalu terbuka ({mode:o}); user lain di server ini bisa membacanya.",
+                "Key file {} is too open ({mode:o}); other users on this server can read it.",
                 key_path.display()
             ),
             format!("sudo chmod 400 {}", key_path.display()),
@@ -54,13 +54,11 @@ pub fn inspect(ctx: &Ctx) -> Result<Opened, Fail> {
         let key = &entry.key;
         match &entry.value {
             Value::Empty if entry.flags.optional => values.push((key.clone(), Secret::default())),
-            Value::Empty => {
-                issues.push(Issue::new(format!("{key} belum diisi."), ctx.cmd("setup")))
-            }
+            Value::Empty => issues.push(Issue::new(format!("{key} is empty."), ctx.cmd("setup"))),
             Value::Plain(value) if entry.flags.plain => values.push((key.clone(), value.clone())),
             Value::Plain(_) => issues.push(Issue::new(
-                format!("{key} tersimpan polos (tidak terenkripsi), padahal bukan @plain."),
-                format!("{} (value itu akan dienkripsi)", ctx.cmd("setup")),
+                format!("{key} is stored plain (not encrypted), but it is not @plain."),
+                format!("{} (it encrypts that value)", ctx.cmd("setup")),
             )),
             Value::Encrypted(b64) => {
                 let Some(identity) = &identity else { continue };
@@ -68,14 +66,12 @@ pub fn inspect(ctx: &Ctx) -> Result<Opened, Fail> {
                     Ok(value) => values.push((key.clone(), value)),
                     Err(failure) => {
                         let why = match failure {
-                            DecryptFailure::NotBase64 => "isinya bukan base64",
-                            DecryptFailure::CannotOpen => {
-                                "rusak, atau dienkripsi dengan kunci lain"
-                            }
-                            DecryptFailure::NotText => "isinya bukan teks",
+                            DecryptFailure::NotBase64 => "not base64",
+                            DecryptFailure::CannotOpen => "broken, or encrypted with another key",
+                            DecryptFailure::NotText => "not text",
                         };
                         issues.push(Issue::new(
-                            format!("{key} tidak bisa dibuka ({why})."),
+                            format!("{key} cannot be decrypted ({why})."),
                             ctx.cmd(&format!("set {key}")),
                         ));
                     }
@@ -97,14 +93,14 @@ pub fn inspect(ctx: &Ctx) -> Result<Opened, Fail> {
 pub fn run(ctx: &Ctx) -> Result<i32> {
     let opened = inspect(ctx)?;
     if cfg!(windows) {
-        output::info("Izin file kunci tidak diperiksa di Windows.");
+        output::info("Key file permissions are not checked on Windows.");
     }
     if system::writable_by_others(&ctx.env).unwrap_or(false) {
         output::warn(&format!(
-            "{} bisa diubah user lain (siapa pun yang bisa menulis .env bisa mengganti value).",
+            "{} can be changed by other users (anyone who can write .env can replace values).",
             ctx.env.display()
         ));
-        output::info(&format!("Solusi: sudo chmod 600 {}", ctx.env.display()));
+        output::info(&format!("Fix: sudo chmod 600 {}", ctx.env.display()));
     }
     if let Ok(Some(template)) = super::read_doc(&ctx.template)
         && let Ok(doc) = load_env(ctx)
@@ -116,14 +112,14 @@ pub fn run(ctx: &Ctx) -> Result<i32> {
             .collect();
         if !new.is_empty() {
             output::warn(&format!(
-                "Template punya key yang belum ada di .env: {}",
+                "The template has keys that are not in .env yet: {}",
                 new.join(", ")
             ));
-            output::info(&format!("Solusi: {}", ctx.cmd("setup")));
+            output::info(&format!("Fix: {}", ctx.cmd("setup")));
         }
     }
     output::ok(&format!(
-        "Semua beres ({} key, kunci: {}).",
+        "All good ({} keys, key file: {}).",
         opened.values.len(),
         opened.key_path.display()
     ));

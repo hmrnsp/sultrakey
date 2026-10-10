@@ -22,7 +22,7 @@ pub struct ParseError {
 
 impl fmt::Display for ParseError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "baris {}: {}", self.line, self.message)
+        write!(f, "line {}: {}", self.line, self.message)
     }
 }
 
@@ -74,7 +74,7 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
         let Some(eq) = start.find('=') else {
             return Err(err(
                 line_no,
-                "tidak dikenali; setiap baris harus berbentuk KEY=value, komentar (#), atau kosong",
+                "not recognized; every line must be KEY=value, a comment (#), or empty",
             ));
         };
         let key = start[..eq].trim();
@@ -82,8 +82,8 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
             return Err(err(
                 line_no,
                 format!(
-                    "nama key '{key}' tidak valid; pakai huruf, angka, dan garis bawah, \
-                     tidak diawali angka"
+                    "key name '{key}' is not valid; use letters, digits, and underscores, \
+                     not starting with a digit"
                 ),
             ));
         }
@@ -98,8 +98,8 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
                     return Err(err(
                         line_no,
                         format!(
-                            "key {RESERVED_PREFIX}{name} tidak dikenal; awalan {RESERVED_PREFIX} \
-                             dicadangkan untuk sultrakey"
+                            "key {RESERVED_PREFIX}{name} is not known; the {RESERVED_PREFIX} prefix \
+                             is reserved for sultrakey"
                         ),
                     ));
                 }
@@ -107,7 +107,7 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
             if let Some((_, first)) = slot {
                 return Err(err(
                     line_no,
-                    format!("{key} muncul dua kali (baris {first} dan {line_no})"),
+                    format!("{key} appears twice (lines {first} and {line_no})"),
                 ));
             }
             *slot = Some((content, line_no));
@@ -118,7 +118,7 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
         if let Some(first) = seen.insert(key.to_string(), line_no) {
             return Err(err(
                 line_no,
-                format!("{key} muncul dua kali (baris {first} dan {line_no})"),
+                format!("{key} appears twice (lines {first} and {line_no})"),
             ));
         }
         let comments = std::mem::take(&mut pending);
@@ -139,13 +139,13 @@ pub fn parse(text: &str) -> Result<Document, ParseError> {
         (Some((_, line)), None) => {
             return Err(err(
                 line,
-                format!("header tidak lengkap: {HEADER_PUBLIC_KEY} tidak ada"),
+                format!("incomplete header: {HEADER_PUBLIC_KEY} is missing"),
             ));
         }
         (None, Some((_, line))) => {
             return Err(err(
                 line,
-                format!("header tidak lengkap: {HEADER_APP} tidak ada"),
+                format!("incomplete header: {HEADER_APP} is missing"),
             ));
         }
     };
@@ -164,7 +164,7 @@ fn strip_export(line: &str) -> &str {
     }
 }
 
-/// The annotations of a comment line: `# @plain @optional @masked`. A comment whose text
+/// The annotations of a comment line: `# @plain @optional @masking`. A comment whose text
 /// does not start with `@` has none. Unknown names are refused, so a typo cannot silently
 /// turn a secret into a plain value or a required key into an optional one.
 fn annotations(comment: &str) -> Result<Flags, String> {
@@ -177,10 +177,15 @@ fn annotations(comment: &str) -> Result<Flags, String> {
         match word {
             "@plain" => flags.plain = true,
             "@optional" => flags.optional = true,
-            "@masked" => flags.masked = true,
+            "@masking" => flags.masked = true,
+            "@masked" => {
+                return Err(
+                    "annotation '@masked' was renamed to @masking; replace it in this file".into(),
+                );
+            }
             other => {
                 return Err(format!(
-                    "anotasi '{other}' tidak dikenal; yang dikenal hanya @plain, @optional, dan @masked"
+                    "annotation '{other}' is not known; only @plain, @optional, and @masking are"
                 ));
             }
         }
@@ -232,7 +237,7 @@ fn read_value(
                 if !after.is_empty() && !after.starts_with('#') {
                     return Err(err(
                         at + 1,
-                        "ada teks setelah tanda kutip penutup; tambahkan # bila itu komentar",
+                        "text after the closing quote; add # if it is a comment",
                     ));
                 }
                 return Ok((out, true, at + 1));
@@ -255,7 +260,7 @@ fn read_value(
         }
         at += 1;
         if at >= lines.len() {
-            return Err(err(line_no, "tanda kutip tidak ditutup"));
+            return Err(err(line_no, "the quote is never closed"));
         }
         out.push('\n');
         current = lines[at];
@@ -421,7 +426,7 @@ mod tests {
     fn annotations_on_one_line_or_many() {
         let doc = parse(
             "# @plain @optional\nA=\n#   @optional\n# @plain\nB=\n# email @ kantor\nC=\n\
-             # @masked\nD=\n# @plain @masked\nE=\n",
+             # @masking\nD=\n# @plain @masking\nE=\n",
         )
         .unwrap();
         let flags = |k| doc.get(k).unwrap().flags;
@@ -467,7 +472,11 @@ mod tests {
 
         let e = error("A=1\nB=2\nA=3\n");
         assert_eq!(e.line, 3);
-        assert!(e.message.contains("baris 1 dan 3"), "{e}");
+        assert!(e.message.contains("lines 1 and 3"), "{e}");
+
+        let e = error("A=1\n# @masked\nB=2\n");
+        assert_eq!(e.line, 2);
+        assert!(e.message.contains("renamed to @masking"), "{e}");
 
         assert_eq!(error("A=1\njust text\n").line, 2);
         assert_eq!(error("1A=x\n").line, 1);

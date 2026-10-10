@@ -19,7 +19,7 @@ pub fn draw(frame: &mut Frame, form: &Form) {
     let area = frame.area();
     if area.width < MIN_WIDTH || area.height < MIN_HEIGHT {
         let text = format!(
-            "Jendela terlalu kecil. Perbesar jendela terminal (minimal {MIN_WIDTH}×{MIN_HEIGHT})."
+            "The window is too small. Make the terminal window larger (at least {MIN_WIDTH}×{MIN_HEIGHT})."
         );
         frame.render_widget(Paragraph::new(text).wrap(Wrap { trim: true }), area);
         return;
@@ -74,10 +74,10 @@ fn draw_list(frame: &mut Frame, form: &Form, area: Rect) {
     let area = pad(area);
     let [head, rows] = Layout::vertical([Constraint::Length(2), Constraint::Min(0)]).areas(area);
     let count = format!("{}/{}", form.answered(), form.fields.len());
-    let gap = (head.width as usize).saturating_sub(width("Key kosong") + width(&count));
+    let gap = (head.width as usize).saturating_sub(width("Empty keys") + width(&count));
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            Span::from("Key kosong").bold(),
+            Span::from("Empty keys").bold(),
             Span::from(" ".repeat(gap)),
             Span::from(count).dark_gray(),
         ])),
@@ -113,8 +113,9 @@ fn draw_list(frame: &mut Frame, form: &Form, area: Rect) {
             };
             let mut line = vec![marker, symbol, key];
             let used = 4 + width(&field.key);
-            if field.optional && used + 9 <= rows.width as usize {
-                line.push(Span::from(" opsional").dark_gray());
+            let optional = " optional";
+            if field.optional && used + width(optional) <= rows.width as usize {
+                line.push(Span::from(optional).dark_gray());
             }
             Line::from(line)
         })
@@ -163,7 +164,7 @@ fn draw_detail(frame: &mut Frame, form: &Form, area: Rect) {
         draw_input(
             frame,
             first,
-            "Isi    › ",
+            "Value  › ",
             &form.input,
             true,
             editing && !repeat,
@@ -171,13 +172,13 @@ fn draw_detail(frame: &mut Frame, form: &Form, area: Rect) {
         draw_input(
             frame,
             second,
-            "Ulangi › ",
+            "Repeat › ",
             &form.again,
             true,
             editing && repeat,
         );
     } else {
-        draw_input(frame, input, "Isi › ", &form.input, false, editing);
+        draw_input(frame, input, "Value › ", &form.input, false, editing);
     }
     frame.render_widget(
         Paragraph::new(status_line(&form.status())).wrap(Wrap { trim: true }),
@@ -187,19 +188,19 @@ fn draw_detail(frame: &mut Frame, form: &Form, area: Rect) {
 
 fn label_line(field: &Field) -> Line<'static> {
     let (shown, shown_bg) = if field.masked {
-        ("RAHASIA", Color::Yellow)
+        ("SECRET", Color::Yellow)
     } else {
-        ("TERLIHAT", Color::Cyan)
+        ("VISIBLE", Color::Cyan)
     };
     let (need, need_bg) = if field.optional {
-        ("OPSIONAL", Color::Gray)
+        ("OPTIONAL", Color::Gray)
     } else {
-        ("WAJIB", Color::LightMagenta)
+        ("REQUIRED", Color::LightMagenta)
     };
     let (kept, kept_bg) = if field.plain {
-        ("POLOS", Color::Gray)
+        ("PLAIN", Color::Gray)
     } else {
-        ("TERENKRIPSI", Color::Green)
+        ("ENCRYPTED", Color::Green)
     };
     let badge = |text: &'static str, bg: Color| {
         Span::styled(format!(" {text} "), Style::new().fg(Color::Black).bg(bg))
@@ -216,9 +217,9 @@ fn label_line(field: &Field) -> Line<'static> {
 fn help_text(field: &Field) -> Text<'static> {
     let mut lines: Vec<Line> = if field.help.is_empty() {
         vec![
-            Line::from("Belum ada keterangan untuk key ini.").dark_gray(),
-            Line::from("Tambahkan di .env.example, contoh:").dark_gray(),
-            Line::from("  # Penjelasan singkat").dark_gray(),
+            Line::from("No description for this key yet.").dark_gray(),
+            Line::from("Add one in .env.example, for example:").dark_gray(),
+            Line::from("  # Short description").dark_gray(),
             Line::from(format!("  {}=", field.key)).dark_gray(),
         ]
     } else {
@@ -231,7 +232,7 @@ fn help_text(field: &Field) -> Text<'static> {
     if let Some(default) = &field.default {
         lines.push(Line::from(""));
         lines.push(Line::from(vec![
-            Span::from("Bawaan template: ").dark_gray(),
+            Span::from("Template default: ").dark_gray(),
             Span::from(printable(default)),
         ]));
     }
@@ -287,20 +288,20 @@ fn status_line(status: &Status) -> Line<'static> {
 fn footer_line(mode: Mode) -> Line<'static> {
     let keys: &[(&str, &str)] = match mode {
         Mode::Edit | Mode::Repeat => &[
-            ("Enter", "lanjut"),
-            ("↑↓", "pindah"),
-            ("Ctrl+S", "simpan"),
-            ("F1", "bantuan"),
-            ("Esc", "batal"),
+            ("Enter", "next"),
+            ("↑↓", "move"),
+            ("Ctrl+S", "save"),
+            ("F1", "help"),
+            ("Esc", "cancel"),
         ],
         Mode::Review { .. } => &[
-            ("←→", "pilih"),
-            ("Enter", "jalankan"),
-            ("↑↓", "gulir"),
-            ("Esc", "batal"),
+            ("←→", "choose"),
+            ("Enter", "confirm"),
+            ("↑↓", "scroll"),
+            ("Esc", "cancel"),
         ],
-        Mode::ConfirmCancel { .. } => &[("y", "ya, batal"), ("n", "kembali")],
-        Mode::Help { .. } => &[("tombol apa saja", "tutup bantuan")],
+        Mode::ConfirmCancel { .. } => &[("y", "yes, cancel"), ("n", "go back")],
+        Mode::Help { .. } => &[("any key", "close help")],
     };
     let mut spans = vec![Span::from(" ")];
     for (i, (key, what)) in keys.iter().enumerate() {
@@ -321,11 +322,11 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
         .zip(&form.answers)
         .map(|(field, answer)| {
             let shown = match answer {
-                None if field.optional => Span::from("(belum diisi)").dark_gray(),
-                None => Span::from("(belum diisi)").yellow(),
-                Some(Reply::Empty) => Span::from("(kosong)").dark_gray(),
+                None if field.optional => Span::from("(not filled)").dark_gray(),
+                None => Span::from("(not filled)").yellow(),
+                Some(Reply::Empty) => Span::from("(empty)").dark_gray(),
                 Some(Reply::Value(_, Some(path))) => Span::from(format!(
-                    "(isi file {})",
+                    "(contents of {})",
                     printable(&path.display().to_string())
                 ))
                 .dark_gray(),
@@ -352,7 +353,7 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
     let height = rows.len() as u16 + 4 + warn_rows;
     let popup = centered(area, area.width.saturating_sub(4).min(76), height);
     frame.render_widget(Clear, popup);
-    let block = popup_block(" Periksa sebelum disimpan ");
+    let block = popup_block(" Review before saving ");
     let inner = pad(block.inner(popup));
     frame.render_widget(block, popup);
 
@@ -368,7 +369,7 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
     if !missing.is_empty() {
         frame.render_widget(
             Paragraph::new(format!(
-                "! Belum diisi: {}. Tetap kosong; isi nanti dengan sultrakey setup.",
+                "! Not filled: {}. They stay empty; fill them later with sultrakey setup.",
                 missing.join(", ")
             ))
             .yellow()
@@ -391,9 +392,9 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
     };
     frame.render_widget(
         Paragraph::new(Line::from(vec![
-            button("[ Simpan ]", save),
+            button("[ Save ]", save),
             Span::from("      "),
-            button("[ Kembali ubah ]", !save),
+            button("[ Back to edit ]", !save),
         ]))
         .centered(),
         buttons,
@@ -403,18 +404,18 @@ fn draw_review(frame: &mut Frame, form: &Form, save: bool, scroll: u16) {
 fn draw_confirm(frame: &mut Frame) {
     let popup = centered(frame.area(), 46, 6);
     frame.render_widget(Clear, popup);
-    let block = popup_block(" Batal tanpa menyimpan? ");
+    let block = popup_block(" Cancel without saving? ");
     let inner = pad(block.inner(popup));
     frame.render_widget(block, popup);
     frame.render_widget(
         Paragraph::new(vec![
-            Line::from("Semua isian di layar ini dibuang."),
+            Line::from("Everything entered on this screen is discarded."),
             Line::from(""),
             Line::from(vec![
                 Span::from("y").cyan().bold(),
-                Span::from(" ya, batal      "),
+                Span::from(" yes, cancel      "),
                 Span::from("n").cyan().bold(),
-                Span::from(" kembali"),
+                Span::from(" go back"),
             ]),
         ]),
         inner,
@@ -431,34 +432,34 @@ fn draw_help(frame: &mut Frame) {
     };
     let lines = vec![
         section("Label"),
-        row("RAHASIA", "diketik sebagai bintang, dua kali"),
-        row("TERLIHAT", "diketik terlihat, sekali"),
-        row("WAJIB", "harus diisi sebelum aplikasi bisa jalan"),
-        row("OPSIONAL", "boleh dikosongkan: hapus isinya, lalu Enter"),
-        row("TERENKRIPSI", "disimpan terenkripsi di .env"),
-        row("POLOS", "disimpan apa adanya (# @plain)"),
+        row("SECRET", "typed as stars, twice"),
+        row("VISIBLE", "typed visibly, once"),
+        row("REQUIRED", "must be filled before the application can run"),
+        row("OPTIONAL", "may be left empty: clear it, then press Enter"),
+        row("ENCRYPTED", "stored encrypted in .env"),
+        row("PLAIN", "stored as is (# @plain)"),
         Line::from(""),
-        section("Tombol"),
-        row("Enter", "simpan isian, lanjut ke key berikutnya"),
+        section("Keys"),
+        row("Enter", "keep the value, go to the next key"),
         row(
             "↑ ↓  Tab",
-            "pindah key; ketikan yang belum di-Enter dibuang",
+            "move between keys; typing without Enter is dropped",
         ),
-        row("← → Home End", "geser kursor"),
-        row("Ctrl+U", "hapus seluruh isian"),
-        row("Ctrl+S", "periksa semua jawaban, lalu simpan"),
-        row("Esc", "batal tanpa menyimpan"),
+        row("← → Home End", "move the cursor"),
+        row("Ctrl+U", "clear the whole line"),
+        row("Ctrl+S", "review every answer, then save"),
+        row("Esc", "cancel without saving"),
         Line::from(""),
-        section("Isi dari file"),
+        section("Fill from a file"),
         row(
-            "@lokasi-file",
-            "value = ISI file itu; path-nya tidak disimpan",
+            "@file-path",
+            "value = the CONTENTS of that file; the path is not saved",
         ),
-        row("@@teks", "value yang memang diawali @"),
+        row("@@text", "a value that really starts with @"),
     ];
     let popup = centered(frame.area(), 68, lines.len() as u16 + 4);
     frame.render_widget(Clear, popup);
-    let block = popup_block(" Bantuan ");
+    let block = popup_block(" Help ");
     let inner = pad(block.inner(popup));
     frame.render_widget(block, popup);
     frame.render_widget(Paragraph::new(lines), inner);
@@ -558,7 +559,7 @@ mod tests {
 
     fn sample() -> Form {
         let mut host = field("DB_HOST", false, false, Some("localhost"));
-        host.help = vec!["Alamat server PostgreSQL.".into()];
+        host.help = vec!["PostgreSQL server address.".into()];
         let mut bare = field("REDIS_HOST", false, true, None);
         bare.help.clear();
         bare.plain = true;
@@ -570,13 +571,13 @@ mod tests {
         let text = screen(&sample(), 80, 24);
         assert!(text.contains("sultrakey setup"), "{text}");
         assert!(
-            text.contains("TERLIHAT") && text.contains("WAJIB"),
+            text.contains("VISIBLE") && text.contains("REQUIRED"),
             "{text}"
         );
-        assert!(text.contains("TERENKRIPSI"), "{text}");
-        assert!(text.contains("Alamat server PostgreSQL."), "{text}");
-        assert!(text.contains("Bawaan template: localhost"), "{text}");
-        assert!(text.contains("Isi › localhost"), "{text}");
+        assert!(text.contains("ENCRYPTED"), "{text}");
+        assert!(text.contains("PostgreSQL server address."), "{text}");
+        assert!(text.contains("Template default: localhost"), "{text}");
+        assert!(text.contains("Value › localhost"), "{text}");
         assert!(text.contains("0/3"), "{text}");
     }
 
@@ -586,10 +587,10 @@ mod tests {
         form.select(2);
         let text = screen(&form, 80, 24);
         assert!(
-            text.contains("OPSIONAL") && text.contains("POLOS"),
+            text.contains("OPTIONAL") && text.contains("PLAIN"),
             "{text}"
         );
-        assert!(text.contains("Belum ada keterangan"), "{text}");
+        assert!(text.contains("No description"), "{text}");
         assert!(text.contains("REDIS_HOST="), "{text}");
     }
 
@@ -606,18 +607,18 @@ mod tests {
             KeyModifiers::NONE,
         )));
         let typing = screen(&form, 80, 24);
-        assert!(typing.contains("RAHASIA"), "{typing}");
-        assert!(typing.contains("Isi    › **"), "{typing}");
+        assert!(typing.contains("SECRET"), "{typing}");
+        assert!(typing.contains("Value  › **"), "{typing}");
         assert!(!typing.contains("pw"), "{typing}");
 
         type_line(&mut form, "");
         type_line(&mut form, "pw");
         type_line(&mut form, "");
         let review = screen(&form, 80, 24);
-        assert!(review.contains("Periksa sebelum disimpan"), "{review}");
+        assert!(review.contains("Review before saving"), "{review}");
         assert!(review.contains("DB_PASSWORD  ********"), "{review}");
         assert!(review.contains("DB_HOST      localhost"), "{review}");
-        assert!(review.contains("(kosong)"), "{review}");
+        assert!(review.contains("(empty)"), "{review}");
         assert!(!review.contains("pw"), "{review}");
     }
 
@@ -625,10 +626,10 @@ mod tests {
     fn narrow_and_tiny_terminals() {
         let narrow = screen(&sample(), 50, 24);
         assert!(
-            narrow.contains("DB_PASSWORD") && narrow.contains("TERLIHAT"),
+            narrow.contains("DB_PASSWORD") && narrow.contains("VISIBLE"),
             "{narrow}"
         );
         let tiny = screen(&sample(), 30, 8);
-        assert!(tiny.contains("terlalu kecil"), "{tiny}");
+        assert!(tiny.contains("too small"), "{tiny}");
     }
 }

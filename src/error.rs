@@ -96,7 +96,7 @@ impl std::error::Error for Fail {}
 /// The user stopped a prompt. Not a failure of the tool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Abort {
-    /// "Tidak" to a confirmation.
+    /// "No" to a confirmation.
     Cancelled,
 }
 
@@ -109,7 +109,7 @@ impl Abort {
 impl fmt::Display for Abort {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Cancelled => write!(f, "Dibatalkan; tidak ada yang diubah."),
+            Self::Cancelled => write!(f, "Cancelled; nothing was changed."),
         }
     }
 }
@@ -132,8 +132,8 @@ mod tests {
     fn display_joins_problems() {
         let fail = Fail {
             code: Code::Config,
-            issues: vec![Issue::bare("A kosong."), Issue::new("B rusak.", "x")],
+            issues: vec![Issue::bare("A is empty."), Issue::new("B is broken.", "x")],
         };
-        assert_eq!(fail.to_string(), "A kosong.; B rusak.");
+        assert_eq!(fail.to_string(), "A is empty.; B is broken.");
     }
 }

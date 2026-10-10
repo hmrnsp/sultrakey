@@ -7,12 +7,12 @@ use clap::{Args, Parser, Subcommand};
 #[command(
     name = "sultrakey",
     version,
-    about = "File .env terenkripsi, lalu menjalankan aplikasi dengan value yang sudah dibuka",
-    after_help = "Alur di server:\n  \
-        sudo sultrakey init <app> --owner <user-aplikasi>\n  \
+    about = "Encrypted .env files, and a launcher that runs applications with the decrypted values",
+    after_help = "On a server:\n  \
+        sudo sultrakey init <app> --owner <app-user>\n  \
         sultrakey setup\n  \
         sultrakey check\n  \
-        sultrakey run -- <perintah aplikasi>"
+        sultrakey run -- <application command>"
 )]
 pub struct Cli {
     #[command(flatten)]
@@ -23,11 +23,11 @@ pub struct Cli {
 
 #[derive(Debug, Clone, Args)]
 pub struct Global {
-    /// Lokasi file .env
+    /// Path of the .env file
     #[arg(long, global = true, value_name = "FILE", default_value = ".env")]
     pub env: PathBuf,
 
-    /// Lokasi file template
+    /// Path of the template file
     #[arg(
         long,
         global = true,
@@ -36,66 +36,66 @@ pub struct Global {
     )]
     pub template: PathBuf,
 
-    /// Lokasi file kunci (bawaan: /etc/sultrakey/<app>.key; Windows: %APPDATA%\sultrakey\<app>.key)
+    /// Path of the key file (default: /etc/sultrakey/<app>.key; Windows: %APPDATA%\sultrakey\<app>.key)
     #[arg(long, global = true, value_name = "FILE")]
     pub key_file: Option<PathBuf>,
 }
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
-    /// Buat kunci (bila belum ada) dan .env dari template, atau enkripsi .env polos lama
+    /// Create the key (if missing) and .env from the template, or encrypt an old plain .env
     Init {
-        /// Nama aplikasi: huruf kecil, angka, tanda minus
+        /// Application name: lowercase letters, digits, dashes
         app: String,
-        /// Pemilik file kunci dan .env: user[:group] aplikasi (wajib saat memakai sudo)
+        /// Owner of the key file and .env: the application's user[:group] (required with sudo)
         #[arg(long, value_name = "USER[:GROUP]")]
         owner: Option<String>,
     },
 
-    /// Samakan .env dengan template, lalu tanyakan key yang masih kosong
+    /// Bring .env in line with the template, then ask for the keys that are still empty
     Setup,
 
-    /// Ganti value satu key (dari prompt, --stdin, atau --file)
+    /// Replace the value of one key (from a prompt, --stdin, or --file)
     Set {
-        /// Nama key, persis seperti di .env
+        /// Key name, exactly as in .env
         key: String,
-        /// Baca value dari stdin (seluruh isinya)
+        /// Read the value from stdin (all of it)
         #[arg(long, conflicts_with = "file")]
         stdin: bool,
-        /// Baca value dari file (untuk isi banyak baris, misalnya sertifikat)
+        /// Read the value from a file (for multi-line values such as certificates)
         #[arg(long, value_name = "FILE")]
         file: Option<PathBuf>,
     },
 
-    /// Tampilkan nama key dan statusnya (value tidak pernah ditampilkan)
+    /// Show key names and their status (values are never shown)
     List,
 
-    /// Periksa semua key terisi, bisa dibuka, dan kunci cocok
+    /// Check that every key is filled, can be decrypted, and the key matches
     Check,
 
-    /// Periksa, buka value, lalu jalankan aplikasi dengan value itu di environment
+    /// Check, decrypt, then run the application with the values in its environment
     Run {
-        /// Perintah aplikasi, ditulis setelah --, contoh: sultrakey run -- node dist/main.js
-        #[arg(last = true, required = true, value_name = "PERINTAH")]
+        /// Application command, written after --, for example: sultrakey run -- node dist/main.js
+        #[arg(last = true, required = true, value_name = "COMMAND")]
         command: Vec<OsString>,
     },
 
-    /// Pasang sultrakey ini ke /usr/bin (sudo), ~/.local/bin, atau folder program Windows
+    /// Install this sultrakey to /usr/bin (sudo), ~/.local/bin, or the Windows programs folder
     Install,
 
-    /// Perbarui sultrakey ke rilis terbaru
+    /// Update sultrakey to the latest release
     Update {
-        /// Hanya periksa apakah ada versi baru (exit 1 bila ada)
+        /// Only check whether a new version exists (exit 1 if it does)
         #[arg(long)]
         check: bool,
-        /// Jangan tanya konfirmasi
+        /// Do not ask for confirmation
         #[arg(short, long)]
         yes: bool,
     },
 
-    /// Hapus sultrakey yang terpasang (file kunci dan .env tidak disentuh)
+    /// Remove the installed sultrakey (key files and .env are not touched)
     Uninstall {
-        /// Jangan tanya konfirmasi
+        /// Do not ask for confirmation
         #[arg(short, long)]
         yes: bool,
     },

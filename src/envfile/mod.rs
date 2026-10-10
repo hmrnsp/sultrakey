@@ -1,6 +1,6 @@
 //! The `.env` file and its template: a header naming the app and its public key, then
 //! keys in order, each with the comment block directly above it (help text and
-//! `# @plain` / `# @optional` / `# @masked` annotations).
+//! `# @plain` / `# @optional` / `# @masking` annotations).
 //!
 //! `parse` reads, `write` renders, `sync` merges a template into a `.env`. All pure.
 
@@ -58,13 +58,13 @@ pub struct Flags {
     pub plain: bool,
     /// `@optional`: may stay empty.
     pub optional: bool,
-    /// `@masked`: typed as stars even when the name does not look secret.
+    /// `@masking`: typed as stars even when the name does not look secret.
     pub masked: bool,
 }
 
 /// Name parts (split on `_`) that make a key typed as stars: `REDIS_PASSWORD`, `JWT_SECRET`.
 /// Whole parts only, so `PASSPORT_URL` stays visible. Not `KEY`: names like `API_KEY` or
-/// `KEY_PREFIX` are typed visibly unless marked `@masked`.
+/// `KEY_PREFIX` are typed visibly unless marked `@masking`.
 const SENSITIVE_WORDS: &[&str] = &[
     "PASSWORD", "PASSWD", "PASS", "PWD", "SECRET", "TOKEN", "AUTH", "SALT",
 ];
@@ -100,11 +100,11 @@ pub enum Status {
 impl Status {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Encrypted => "terenkripsi",
+            Self::Encrypted => "encrypted",
             Self::Plain => "plain",
-            Self::PlainSecret => "polos — harus dienkripsi",
-            Self::EmptyRequired => "kosong — wajib diisi",
-            Self::EmptyOptional => "kosong (opsional)",
+            Self::PlainSecret => "plain — must be encrypted",
+            Self::EmptyRequired => "empty — required",
+            Self::EmptyOptional => "empty (optional)",
         }
     }
 }

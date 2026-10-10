@@ -1,9 +1,9 @@
 [package]
 name = "sultrakey"
-version = "0.4.0"
+version = "0.5.0"
 edition = "2024"
 rust-version = "1.89"
-description = "File .env terenkripsi (age X25519) dan peluncur aplikasi dengan value yang sudah dibuka"
+description = "Encrypted .env files (age X25519) and a launcher that runs applications with the decrypted values"
 repository = "https://github.com/hmrnsp/sultrakey"
 readme = "README.md"
 

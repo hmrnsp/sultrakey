@@ -14,23 +14,23 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub fn run() -> Result<i32> {
     let root = system::is_root();
-    let source = env::current_exe().context("file program ini tidak ditemukan")?;
+    let source = env::current_exe().context("cannot find this program's file")?;
     let target = install::installed_exe(root)?;
     let dir = target
         .parent()
-        .context("lokasi pasang tidak punya folder")?;
+        .context("the install location has no folder")?;
 
     match install::copy_exe(&source, &target)? {
         Copied::Installed => output::ok(&format!(
-            "sultrakey {VERSION} dipasang di {}",
+            "sultrakey {VERSION} installed in {}",
             target.display()
         )),
         Copied::Replaced => output::ok(&format!(
-            "{} diperbarui ke sultrakey {VERSION}",
+            "{} updated to sultrakey {VERSION}",
             target.display()
         )),
         Copied::AlreadyThere => output::ok(&format!(
-            "sultrakey {VERSION} sudah terpasang di {}",
+            "sultrakey {VERSION} is already installed in {}",
             target.display()
         )),
     }
@@ -38,15 +38,15 @@ pub fn run() -> Result<i32> {
         prepare_key_dir();
     } else if cfg!(target_os = "linux") {
         output::info(
-            "Catatan: untuk server, pasang dengan sudo (sudo ./sultrakey install) supaya \
-             sultrakey ada di /usr/bin dan bisa dipakai pm2/systemd.",
+            "Note: on a server, install with sudo (sudo ./sultrakey install) so that \
+             sultrakey is in /usr/bin, where pm2/systemd can use it.",
         );
     }
     let path_changed = add_to_path(dir)?;
     if path_changed {
-        output::info("Selesai: buka terminal baru, lalu jalankan `sultrakey --version`.");
+        output::info("Done: open a new terminal, then run `sultrakey --version`.");
     } else {
-        output::info("Selesai: jalankan `sultrakey --version` dari terminal mana pun.");
+        output::info("Done: run `sultrakey --version` from any terminal.");
     }
     Ok(0)
 }
@@ -66,9 +66,9 @@ fn prepare_key_dir() {
         .mode(0o755)
         .create(&dir)
     {
-        Ok(()) => output::ok(&format!("Folder kunci {} dibuat.", dir.display())),
+        Ok(()) => output::ok(&format!("Key folder {} created.", dir.display())),
         Err(err) => output::warn(&format!(
-            "Folder kunci {} tidak bisa dibuat: {err}",
+            "Key folder {} cannot be created: {err}",
             dir.display()
         )),
     }
@@ -81,7 +81,7 @@ fn prepare_key_dir() {}
 fn add_to_path(dir: &Path) -> Result<bool> {
     let added = install::add_to_path(&mut install::windows::RegistryPath, dir)?;
     if added {
-        output::ok(&format!("{} ditambahkan ke PATH.", dir.display()));
+        output::ok(&format!("{} added to PATH.", dir.display()));
     }
     Ok(added)
 }
@@ -94,7 +94,7 @@ fn add_to_path(dir: &Path) -> Result<bool> {
         env::var_os("PATH").is_some_and(|path| env::split_paths(&path).any(|entry| entry == dir));
     if !on_path {
         output::warn(&format!(
-            "{} belum ada di PATH; tambahkan baris ini ke ~/.bashrc atau ~/.zshrc:\n  export PATH=\"{}:$PATH\"",
+            "{} is not on PATH; add this line to ~/.bashrc or ~/.zshrc:\n  export PATH=\"{}:$PATH\"",
             dir.display(),
             dir.display()
         ));

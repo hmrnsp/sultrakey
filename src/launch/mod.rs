@@ -23,8 +23,8 @@ use crate::error::Fail;
 pub fn launch(command: &[OsString], env: &ChildEnv) -> Result<i32> {
     let Some((program, args)) = command.split_first() else {
         return Err(Fail::usage(
-            "Perintah aplikasi tidak ada.",
-            "tulis perintahnya setelah --, contoh: sultrakey run -- node dist/main.js",
+            "No application command.",
+            "write the command after --, for example: sultrakey run -- node dist/main.js",
         )
         .into());
     };
@@ -39,13 +39,15 @@ pub fn start_fail(program: &std::ffi::OsStr, err: &io::Error) -> Fail {
     let name = program.to_string_lossy();
     match err.kind() {
         io::ErrorKind::NotFound => Fail::config(
-            format!("Perintah '{name}' tidak ditemukan."),
-            "periksa nama perintahnya, atau tulis lokasi lengkapnya, contoh: /usr/bin/node",
+            format!("Command '{name}' not found."),
+            "check the command name, or give its full path, for example: /usr/bin/node",
         ),
         io::ErrorKind::PermissionDenied => Fail::config(
-            format!("Perintah '{name}' tidak boleh dijalankan oleh user ini (izin)."),
-            format!("periksa izin file '{name}' (chmod +x) dan user yang menjalankan aplikasi"),
+            format!("Command '{name}' may not be run by this user (permission)."),
+            format!(
+                "check the permissions of '{name}' (chmod +x) and the user that runs the application"
+            ),
         ),
-        _ => Fail::config_bare(format!("Perintah '{name}' gagal dijalankan: {err}.")),
+        _ => Fail::config_bare(format!("Command '{name}' failed to start: {err}.")),
     }
 }
