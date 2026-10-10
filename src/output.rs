@@ -29,17 +29,6 @@ pub fn key_hint(key: &str, what: &str, width: usize) -> String {
     )
 }
 
-/// The opening of an interactive command (stderr): a rounded box holding `title` (bold
-/// cyan) and, after it, `aside` (faint).
-pub fn banner(title: &str, aside: &str) -> [String; 3] {
-    let rule = "─".repeat(title.chars().count() + aside.chars().count() + 8);
-    [
-        format!("╭{rule}╮"),
-        format!("│  {}    {}  │", paint("1;36", title), faint(aside)),
-        format!("╰{rule}╯"),
-    ]
-}
-
 /// `text` wrapped in the SGR `codes`. Plain when stderr is not a terminal, `NO_COLOR` is
 /// set, or the terminal cannot show styles.
 fn paint(codes: &str, text: &str) -> String {
@@ -152,17 +141,6 @@ mod tests {
         assert!(is_broken_pipe(&wrapped));
         assert_eq!(report(&wrapped), 0);
         assert!(!is_broken_pipe(&anyhow::anyhow!("x")));
-    }
-
-    #[test]
-    fn banner_lines_have_one_width() {
-        let lines = banner("sultrakey setup", "v1.2.3");
-        let width = |line: &String| line.chars().count();
-        assert_eq!(width(&lines[0]), width(&lines[2]));
-        assert!(lines[1].contains("sultrakey setup") && lines[1].contains("v1.2.3"));
-        if !styled() {
-            assert_eq!(width(&lines[0]), width(&lines[1]));
-        }
     }
 
     #[test]

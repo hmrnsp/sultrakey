@@ -62,6 +62,22 @@ sultrakey setup
 sultrakey run -- npm run dev
 ```
 
+## Layar `setup`
+
+Di terminal, `setup` menampilkan semua key yang kosong dalam satu layar. Daftar key ada di kiri,
+key yang dipilih di kanan.
+
+- Tiga label di bawah nama key: `RAHASIA`/`TERLIHAT` (cara mengetik), `WAJIB`/`OPSIONAL`, dan
+  `TERENKRIPSI`/`POLOS` (cara disimpan).
+- Keterangan diambil dari komentar di atas key dalam template, lalu nilai bawaan bila ada.
+- Saat mengetik `@lokasi-file`, layar langsung memberi tahu apakah file itu ada. Isi file tidak
+  pernah ditampilkan.
+- Enter menyimpan isian dan pindah ke key berikutnya. Setelah key terakhir, muncul daftar untuk
+  diperiksa sebelum disimpan. Value rahasia di daftar itu selalu tampil `********`.
+- `.env` baru ditulis setelah memilih Simpan. Esc atau Ctrl+C membatalkan tanpa mengubah apa pun.
+- Key yang dilewati (pindah dengan ↑↓ tanpa Enter) tetap kosong.
+- F1 menampilkan arti label dan semua tombol.
+
 ## Template
 
 ```env
@@ -80,7 +96,7 @@ SSL_CERT=
 - Komentar tepat di atas key menjadi teks bantuan saat `setup`.
 - Value di template menjadi nilai bawaan saat `setup`:
   - Key biasa: nilai bawaan sudah tertulis di baris input. Enter = pakai, Backspace = ganti. Hapus semua
-    lalu Enter: key `@optional` jadi kosong, key wajib ditanya ulang. Tanpa terminal, key biasa yang
+    lalu Enter: key `@optional` jadi kosong, key wajib ditolak sampai diisi. Tanpa terminal, key biasa yang
     kosong dan tidak dikirim langsung diisi nilai bawaan.
   - Key rahasia: nilai di template **diabaikan** dan wajib diketik, juga tanpa terminal. Jadi password
     contoh seperti `DB_PASSWORD=secret` tidak pernah tersimpan.
@@ -157,7 +173,7 @@ REDIS_HOST=enc:YWdlLWVuY3J5cHRpb24...
 | Perintah | Fungsi |
 | --- | --- |
 | `init <app> [--owner user[:group]]` | Buat kunci bila belum ada (tidak pernah menimpa). Buat `.env` dari template, atau ambil alih `.env` polos lama dengan mengenkripsi value-nya. |
-| `setup` | Samakan `.env` dengan template, enkripsi value polos di key rahasia, lalu tanyakan semua key kosong (key rahasia tampil `*`). Tanpa terminal: baca baris `KEY=value` dari stdin. |
+| `setup` | Samakan `.env` dengan template, enkripsi value polos di key rahasia, lalu tampilkan semua key kosong dalam satu layar (key rahasia tampil `*`). Tanpa terminal: baca baris `KEY=value` dari stdin. |
 | `set <KEY> [--stdin \| --file F]` | Ganti satu value. Value tidak pernah diambil dari argumen. |
 | `list` | Nama key dan statusnya. Value tidak pernah ditampilkan. |
 | `check` | Semua key wajib terisi, semua `enc:` bisa dibuka, kunci cocok, izin file kunci aman. |

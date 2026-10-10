@@ -139,9 +139,6 @@ pub struct Question<'a> {
     /// The template's value: prefilled on the input line, editable. Ignored for masked
     /// keys, so it is never shown.
     pub default: Option<&'a str>,
-    /// `(n, total)` when asked as one of a series that showed `general_keys` once up
-    /// front; `None` shows them under the key instead.
-    pub step: Option<(usize, usize)>,
 }
 
 /// The keys that work for every question. `defaults`: some input lines start out filled.
@@ -170,23 +167,16 @@ pub enum Reply {
 pub fn ask(prompter: &mut dyn Prompter, question: &Question<'_>) -> Result<Reply> {
     let key = question.key;
     let default = question.default.filter(|_| !question.masked);
-    // `[2/5] DB_PORT`, with everything below lined up under the key name.
-    let number = question
-        .step
-        .map(|(n, total)| format!("[{n}/{total}] "))
-        .unwrap_or_default();
-    let pad = " ".repeat(number.chars().count().max(2));
+    let pad = "  ";
     prompter.say("");
-    prompter.say(&format!("{number}{key}"));
+    prompter.say(key);
     for line in &question.help {
         prompter.note(&format!("{pad}{line}"));
     }
     if question.optional {
         prompter.note(&format!("{pad}boleh dikosongkan"));
     }
-    if question.step.is_none() {
-        prompter.keys(&pad, &general_keys(default.is_some()));
-    }
+    prompter.keys(pad, &general_keys(default.is_some()));
 
     // Both labels the same width, so the two rows of stars line up.
     let (label, again_label) = if question.masked {
@@ -296,7 +286,6 @@ pub mod tests {
             masked,
             optional,
             default,
-            step: None,
         }
     }
 
