@@ -6,3 +6,6 @@
 
 # Catatan pribadi, tidak diunggah
 catatan.md
+/.cargo
+/.claude
+/.github

@@ -55,7 +55,7 @@ pub fn run(ctx: &Ctx, app: &str, owner: Option<&str>) -> Result<i32> {
     if !valid_app(app) {
         return Err(Fail::usage(
             format!("App name '{app}' is not valid."),
-            "use lowercase letters, digits, and dashes, for example: sultrakey init lakupandai",
+            "use lowercase letters, digits, and dashes, for example: sultrakey init example-app",
         )
         .into());
     }

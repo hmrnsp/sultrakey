@@ -24,41 +24,41 @@ test -x /usr/bin/sultrakey
 test -d /etc/sultrakey
 sultrakey --version
 
-useradd -r -m lakupandai
-mkdir -p /opt/lakupandai
-chmod 755 /opt/lakupandai
-cd /opt/lakupandai
+useradd -r -m example-app
+mkdir -p /opt/example-app
+chmod 755 /opt/example-app
+cd /opt/example-app
 printf '# Port aplikasi\n# @plain\nPORT=8899\n# Host Redis\nREDIS_HOST=\n# @optional\nREDIS_PASSWORD=\n' > .env.example
 
-expect_exit 64 sultrakey init lakupandai
-sultrakey init lakupandai --owner lakupandai
-[ "$(stat -c '%a %U' /etc/sultrakey/lakupandai.key)" = "400 lakupandai" ]
-[ "$(stat -c '%a %U' .env)" = "600 lakupandai" ]
+expect_exit 64 sultrakey init example-app
+sultrakey init example-app --owner example-app
+[ "$(stat -c '%a %U' /etc/sultrakey/example-app.key)" = "400 example-app" ]
+[ "$(stat -c '%a %U' .env)" = "600 example-app" ]
 
 printf 'REDIS_HOST=10.10.1.20\n' | sultrakey setup
-[ "$(stat -c '%a %U' .env)" = "600 lakupandai" ]
+[ "$(stat -c '%a %U' .env)" = "600 example-app" ]
 grep -q '^REDIS_HOST=enc:' .env
-runuser -u lakupandai -- sultrakey check --env /opt/lakupandai/.env
+runuser -u example-app -- sultrakey check --env /opt/example-app/.env
 sultrakey list
 
 # shellcheck disable=SC2016 # expanded by the application's shell, not this one
-out=$(runuser -u lakupandai -- sultrakey run --env /opt/lakupandai/.env -- \
+out=$(runuser -u example-app -- sultrakey run --env /opt/example-app/.env -- \
     sh -c 'echo "$REDIS_HOST|$PORT|[${REDIS_PASSWORD-unset}]|${SULTRAKEY_KEY_FILE-none}"')
 [ "$out" = "10.10.1.20|8899|[]|none" ] || { echo "FAIL: run printed '$out'" >&2; exit 1; }
 
 # exec: the application keeps sultrakey's PID.
-out=$(runuser -u lakupandai -- sh -c 'echo $$; exec sultrakey run --env /opt/lakupandai/.env -- sh -c "echo \$\$"')
+out=$(runuser -u example-app -- sh -c 'echo $$; exec sultrakey run --env /opt/example-app/.env -- sh -c "echo \$\$"')
 [ "$(echo "$out" | sed -n 1p)" = "$(echo "$out" | sed -n 2p)" ] || { echo "FAIL: PID changed: $out" >&2; exit 1; }
 
 # A configuration problem stops with 78, and the application does not start.
 sed -i 's/^REDIS_HOST=.*/REDIS_HOST=/' .env
-expect_exit 78 runuser -u lakupandai -- sultrakey run --env /opt/lakupandai/.env -- sh -c 'echo started'
+expect_exit 78 runuser -u example-app -- sultrakey run --env /opt/example-app/.env -- sh -c 'echo started'
 
 # A plain .env from before sultrakey is taken over and encrypted.
 mkdir -p /opt/old && cd /opt/old
 printf 'PORT=1\nDB_PASSWORD=rahasia\n' > .env
 printf '# @plain\nPORT=\nDB_PASSWORD=\n' > .env.example
-sultrakey init old --owner lakupandai
+sultrakey init old --owner example-app
 grep -q '^DB_PASSWORD=enc:' .env
 if grep -q rahasia .env; then
     echo "FAIL: plain value left in .env" >&2

@@ -304,14 +304,14 @@ mod tests {
     #[test]
     fn reads_the_example_env() {
         let doc = parse(
-            "SULTRAKEY_APP=lakupandai\nSULTRAKEY_PUBLIC_KEY=age1xyz\n# Port aplikasi\n# @plain\n\
+            "SULTRAKEY_APP=example-app\nSULTRAKEY_PUBLIC_KEY=age1xyz\n# Port aplikasi\n# @plain\n\
              PORT=8899\n# Host Redis\nREDIS_HOST=enc:QUJD\n# Password\n# @optional\nREDIS_PASSWORD=\n",
         )
         .unwrap();
         assert_eq!(
             doc.header,
             Some(Header {
-                app: "lakupandai".into(),
+                app: "example-app".into(),
                 public_key: "age1xyz".into()
             })
         );

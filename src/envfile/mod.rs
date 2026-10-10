@@ -201,7 +201,7 @@ mod tests {
         for bad in ["", "1A", "A-B", "A B", "A.B", "ä"] {
             assert!(!valid_key(bad), "{bad}");
         }
-        for ok in ["lakupandai", "app-1", "x"] {
+        for ok in ["example-app", "app-1", "x"] {
             assert!(valid_app(ok), "{ok}");
         }
         for bad in ["", "App", "a_b", "a/b", "a.b", "../x"] {
