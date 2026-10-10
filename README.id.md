@@ -1,18 +1,43 @@
-# sultrakey
+<div align="center">
+
+# 🔐 Sultrakey
+
+**File `.env` terenkripsi dan peluncur yang menjalankan aplikasi apa pun dengan nilai yang sudah dibuka.**
+
+Node.js · Spring Boot · Go · Rust · apa saja yang membaca variabel lingkungan
+
+[![CI](https://github.com/hmrnsp/sultrakey/actions/workflows/ci.yml/badge.svg)](https://github.com/hmrnsp/sultrakey/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/hmrnsp/sultrakey?color=blue)](https://github.com/hmrnsp/sultrakey/releases/latest)
+[![Rust](https://img.shields.io/badge/rust-1.89%2B-orange?logo=rust)](https://www.rust-lang.org)
+[![Enkripsi: age](https://img.shields.io/badge/enkripsi-age%20X25519-green)](https://age-encryption.org)
+[![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)](https://github.com/hmrnsp/sultrakey/releases/latest)
 
 [English](README.md) · **Bahasa Indonesia**
 
-File `.env` dengan nilai terenkripsi, dilengkapi shortcut yang menjalankan aplikasi berbahasa apa
-pun (Node.js, Spring Boot, Go, Rust, dan sebagainya) dengan nilai yang sudah dibuka di variabel
-lingkungannya.
+<br>
 
-- Satu berkas biner statis tanpa dependensi. Berjalan di Rocky Linux 8/9, Ubuntu, dan CentOS 7.
-  Windows dan macOS tersedia untuk laptop pengembang.
-- Enkripsi memakai [age](https://age-encryption.org) X25519, tanpa kriptografi buatan sendiri. Dalam
-  keadaan darurat, nilai tetap dapat dibuka dengan CLI `age` resmi.
-- Aplikasi tidak perlu diubah: aplikasi membaca variabel lingkungan seperti biasa.
-- Di terminal, tanda `✓`, `!`, `✗`, dan `Fix:` ditampilkan berwarna. Saat keluaran dialirkan ke
-  skrip atau log, teksnya sama persis tanpa warna. Warna dapat dimatikan dengan `NO_COLOR=1`.
+<img src="docs/Screenshot.png" alt="Layar setup sultrakey" width="800">
+
+<br>
+
+[Pemasangan](#pemasangan) ·
+[Alur singkat](#alur-singkat) ·
+[Templat](#templat) ·
+[Perintah](#perintah) ·
+[Runbook infra](docs/runbook-infra.md)
+
+</div>
+
+---
+
+## ✨ Kenapa sultrakey
+
+| | |
+| --- | --- |
+| 📦 **Satu biner statis** | Tanpa dependensi. Berjalan di Rocky Linux 8/9, Ubuntu, dan CentOS 7. Windows dan macOS tersedia untuk laptop pengembang. |
+| 🛡️ **Enkripsi standar** | [age](https://age-encryption.org) X25519, tanpa kriptografi buatan sendiri. Dalam keadaan darurat, nilai tetap dapat dibuka dengan CLI `age` resmi. |
+| 🔌 **Aplikasi tidak diubah** | Aplikasi membaca variabel lingkungan seperti biasa. |
+| 🎨 **Keluaran ramah** | Di terminal, tanda `✓`, `!`, `✗`, dan `Fix:` berwarna. Saat dialirkan ke skrip atau log, teksnya sama persis tanpa warna. Matikan warna dengan `NO_COLOR=1`. |
 
 Panduan lengkap untuk tim infrastruktur (pemasangan di server, setup, pm2, systemd, Docker) ada di
 [docs/runbook-infra.md](docs/runbook-infra.md).
@@ -73,8 +98,6 @@ sultrakey run -- npm run dev
 ```
 
 ## Layar `setup`
-
-![Layar setup sultrakey](docs/Screenshot.png)
 
 Di terminal, `setup` menampilkan semua variabel dalam satu layar. Daftar variabel berada di kiri,
 sedangkan variabel yang dipilih berada di kanan. Variabel yang sudah terisi tampil redup dengan tanda

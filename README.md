@@ -1,17 +1,43 @@
-# sultrakey
+<div align="center">
+
+# 🔐 Sultrakey
+
+**Encrypted `.env` files and a launcher that runs any app with the decrypted values.**
+
+Node.js · Spring Boot · Go · Rust · anything that reads environment variables
+
+[![CI](https://github.com/hmrnsp/sultrakey/actions/workflows/ci.yml/badge.svg)](https://github.com/hmrnsp/sultrakey/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/hmrnsp/sultrakey?color=blue)](https://github.com/hmrnsp/sultrakey/releases/latest)
+[![Rust](https://img.shields.io/badge/rust-1.89%2B-orange?logo=rust)](https://www.rust-lang.org)
+[![Encryption: age](https://img.shields.io/badge/encryption-age%20X25519-green)](https://age-encryption.org)
+[![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)](https://github.com/hmrnsp/sultrakey/releases/latest)
 
 **English** · [Bahasa Indonesia](README.id.md)
 
-`.env` files with encrypted values, plus a launcher that runs an application in any language
-(Node.js, Spring Boot, Go, Rust, and so on) with the decrypted values in its environment.
+<br>
 
-- One static binary with no dependencies. Runs on Rocky Linux 8/9, Ubuntu, and CentOS 7, plus
-  Windows and macOS for developer laptops.
-- Encryption uses [age](https://age-encryption.org) X25519, with no home-made cryptography. In an
-  emergency, values can still be decrypted with the official `age` CLI.
-- Applications need no changes: they read environment variables as usual.
-- In a terminal, the marks `✓`, `!`, `✗`, and the `Fix:` label are colored. When output is piped to a
-  script or log, the text is identical without color. Set `NO_COLOR=1` to turn color off.
+<img src="docs/Screenshot.png" alt="The sultrakey setup screen" width="800">
+
+<br>
+
+[Installation](#installation) ·
+[Quick start](#quick-start) ·
+[Template](#template) ·
+[Commands](#commands) ·
+[Infra runbook](docs/runbook-infra.md)
+
+</div>
+
+---
+
+## ✨ Why sultrakey
+
+| | |
+| --- | --- |
+| 📦 **One static binary** | No dependencies. Runs on Rocky Linux 8/9, Ubuntu, and CentOS 7, plus Windows and macOS for developer laptops. |
+| 🛡️ **Standard encryption** | [age](https://age-encryption.org) X25519, with no home-made cryptography. In an emergency, values can still be decrypted with the official `age` CLI. |
+| 🔌 **No app changes** | Applications read environment variables as usual. |
+| 🎨 **Friendly output** | In a terminal, the marks `✓`, `!`, `✗`, and the `Fix:` label are colored. Piped to a script or log, the text is identical without color. Set `NO_COLOR=1` to turn color off. |
 
 A complete guide for the infra team (server installation, setup, pm2, systemd, Docker) is in
 [docs/runbook-infra.md](docs/runbook-infra.md) (in Indonesian).
@@ -34,11 +60,11 @@ curl -fsSL https://github.com/hmrnsp/sultrakey/releases/latest/download/install.
 Manual installation: download the binary from the [releases page](https://github.com/hmrnsp/sultrakey/releases/latest),
 then run `./sultrakey-<target> install` (use `sudo` on a server). From source: `cargo install --path .`.
 
-| System                   | Install location                                                              |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| Linux/macOS with sudo    | `/usr/bin/sultrakey` (plus the key folder `/etc/sultrakey`)                   |
-| Linux/macOS without sudo | `~/.local/bin/sultrakey`                                                      |
-| Windows                  | `%LOCALAPPDATA%\Programs\sultrakey\sultrakey.exe` (added to the user's PATH)  |
+| System                   | Install location                                                             |
+| ------------------------ | ---------------------------------------------------------------------------- |
+| Linux/macOS with sudo    | `/usr/bin/sultrakey` (plus the key folder `/etc/sultrakey`)                  |
+| Linux/macOS without sudo | `~/.local/bin/sultrakey`                                                     |
+| Windows                  | `%LOCALAPPDATA%\Programs\sultrakey\sultrakey.exe` (added to the user's PATH) |
 
 ## Quick start
 
@@ -70,8 +96,6 @@ sultrakey run -- npm run dev
 ```
 
 ## The `setup` screen
-
-![The sultrakey setup screen](docs/Screenshot.png)
 
 In a terminal, `setup` shows every variable on one screen. The variable list is on the left, and the
 selected variable is on the right. Variables that already have a value show a dimmed `✓`;
@@ -134,11 +158,11 @@ Annotations are comments above a variable, in the comment block attached to it (
 between). Without annotations, a variable is **secret and required**: encrypted, and it must be filled
 before `run`.
 
-| Annotation    | Effect                                                                                                                                                                                                                              | Without it                                                                                                                                                  |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `# @plain`    | The value is stored **as is**, not encrypted (label `PLAIN`). For values that are not secret, such as a port or a log level.                                                                                                       | The value is encrypted (`enc:...`, label `ENCRYPTED`). A plain value typed by hand into this variable makes `check` and `run` fail until `setup` encrypts it. |
-| `# @optional` | The variable **may be empty** (label `OPTIONAL`). `check` and `run` still work, and the application gets the variable with an empty value. In `setup`, clear the whole line, then press Enter to leave it empty.                    | The variable is required (label `REQUIRED`). `check` and `run` fail (exit code 78) while it is empty.                                                       |
-| `# @masking`  | What you type shows as `*` and is typed **twice** in `setup` and `set` (label `SECRET`). The template's default is ignored. For secrets whose name does not look secret, for example `DATABASE_URL=postgres://user:password@host/db`. | How it is typed follows the variable's name (see below).                                                                                                    |
+| Annotation    | Effect                                                                                                                                                                                                                                | Without it                                                                                                                                                    |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `# @plain`    | The value is stored **as is**, not encrypted (label `PLAIN`). For values that are not secret, such as a port or a log level.                                                                                                          | The value is encrypted (`enc:...`, label `ENCRYPTED`). A plain value typed by hand into this variable makes `check` and `run` fail until `setup` encrypts it. |
+| `# @optional` | The variable **may be empty** (label `OPTIONAL`). `check` and `run` still work, and the application gets the variable with an empty value. In `setup`, clear the whole line, then press Enter to leave it empty.                      | The variable is required (label `REQUIRED`). `check` and `run` fail (exit code 78) while it is empty.                                                         |
+| `# @masking`  | What you type shows as `*` and is typed **twice** in `setup` and `set` (label `SECRET`). The template's default is ignored. For secrets whose name does not look secret, for example `DATABASE_URL=postgres://user:password@host/db`. | How it is typed follows the variable's name (see below).                                                                                                      |
 
 Writing rules:
 
@@ -156,25 +180,25 @@ must show `*`). How a variable is typed does not affect encryption: only `@plain
 
 Example combinations:
 
-| Template                                 | Stored    | While typing                 | May be empty |
-| ---------------------------------------- | --------- | ---------------------------- | ------------ |
-| `REDIS_HOST=`                            | encrypted | shown as is, once            | no           |
-| `REDIS_PASSWORD=`                        | encrypted | `*`, twice                   | no           |
-| `# @optional`<br>`REDIS_PASSWORD=`       | encrypted | `*`, twice                   | yes          |
+| Template                                 | Stored    | While typing                  | May be empty |
+| ---------------------------------------- | --------- | ----------------------------- | ------------ |
+| `REDIS_HOST=`                            | encrypted | shown as is, once             | no           |
+| `REDIS_PASSWORD=`                        | encrypted | `*`, twice                    | no           |
+| `# @optional`<br>`REDIS_PASSWORD=`       | encrypted | `*`, twice                    | yes          |
 | `# @plain`<br>`PORT=8899`                | as is     | shown as is, `8899` prefilled | no           |
 | `# @plain @optional`<br>`LOG_LEVEL=info` | as is     | shown as is, `info` prefilled | yes          |
-| `# @masking`<br>`DATABASE_URL=`          | encrypted | `*`, twice                   | no           |
+| `# @masking`<br>`DATABASE_URL=`          | encrypted | `*`, twice                    | no           |
 
 ### Other markers
 
-| Marker                         | Where                                                | Meaning                                                                                                                                                                                                                                  |
-| ------------------------------ | ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SULTRAKEY_APP=<app>`          | First lines of `.env` (written by `init`)            | Application name; picks the key file `/etc/sultrakey/<app>.key` (Windows: `%APPDATA%\sultrakey\<app>.key`). Not allowed in the template.                                                                                                 |
-| `SULTRAKEY_PUBLIC_KEY=age1...` | First lines of `.env` (written by `init`)            | Public key used to encrypt. Must match the key file; otherwise `check` fails.                                                                                                                                                            |
-| `SULTRAKEY_*`                  | Variable names                                       | Prefix reserved for sultrakey. Apart from the two lines above, variables with this prefix are refused in `.env` and the template. Environment variables with this prefix are also never passed to the application by `run`.               |
-| `enc:...`                      | Values in `.env`                                     | An encrypted value. Do not edit by hand; replace it with `sultrakey set KEY`.                                                                                                                                                            |
-| `@/path/to/file`               | An answer in `setup` (or `KEY=@file` on stdin)       | The value is read from the file's contents, for multi-line values such as certificates. Delete the file afterwards. Without the `@`, the path is saved as plain text (fine for `PUBLIC_KEY_PATH=keys/public_key.pem`).                    |
-| `@@...`                        | An answer in `setup`                                 | A value that really starts with `@`. `@@abc` is saved as `@abc`.                                                                                                                                                                         |
+| Marker                         | Where                                          | Meaning                                                                                                                                                                                                                     |
+| ------------------------------ | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SULTRAKEY_APP=<app>`          | First lines of `.env` (written by `init`)      | Application name; picks the key file `/etc/sultrakey/<app>.key` (Windows: `%APPDATA%\sultrakey\<app>.key`). Not allowed in the template.                                                                                    |
+| `SULTRAKEY_PUBLIC_KEY=age1...` | First lines of `.env` (written by `init`)      | Public key used to encrypt. Must match the key file; otherwise `check` fails.                                                                                                                                               |
+| `SULTRAKEY_*`                  | Variable names                                 | Prefix reserved for sultrakey. Apart from the two lines above, variables with this prefix are refused in `.env` and the template. Environment variables with this prefix are also never passed to the application by `run`. |
+| `enc:...`                      | Values in `.env`                               | An encrypted value. Do not edit by hand; replace it with `sultrakey set KEY`.                                                                                                                                               |
+| `@/path/to/file`               | An answer in `setup` (or `KEY=@file` on stdin) | The value is read from the file's contents, for multi-line values such as certificates. Delete the file afterwards. Without the `@`, the path is saved as plain text (fine for `PUBLIC_KEY_PATH=keys/public_key.pem`).      |
+| `@@...`                        | An answer in `setup`                           | A value that really starts with `@`. `@@abc` is saved as `@abc`.                                                                                                                                                            |
 
 The resulting `.env`:
 
@@ -191,15 +215,15 @@ REDIS_HOST=enc:YWdlLWVuY3J5cHRpb24...
 
 ## Commands
 
-| Command                                                | What it does                                                                                                                                                                                                                                                                                                                                  |
-| ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `init <app> [--owner user[:group]]`                    | Creates the key if missing (never replaces one). Creates `.env` from the template, or takes over an old plain `.env` by encrypting its values.                                                                                                                                                                                              |
-| `setup`                                                | Brings `.env` in line with the template, encrypts plain values in secret variables, then shows every variable on one screen, the empty ones to fill and the filled ones to keep or replace (secret variables show `*`). Without a terminal: reads `KEY=value` lines from stdin.                                                                 |
-| `set <KEY> [--stdin \| --file F]`                      | Replaces one value. Values are never taken from arguments.                                                                                                                                                                                                                                                                                    |
-| `list`                                                 | Shows variable names and their status; values are never shown. In a terminal: a colored table with `STORED` (`ENCRYPTED`/`PLAIN`) and `TYPED` (`SECRET`/`VISIBLE`) columns, plus a summary of the variables that still need `setup`. When piped to a script (`\| grep`, `> file`): the plain `KEY  STATUS` columns, as before.            |
-| `check`                                                | Verifies that every required variable is filled, every `enc:` can be decrypted, the key matches, and the key file's permissions are safe. In a terminal: a table of results per variable and for the key file. Problems are always printed as `✗ ...` and `Fix: ...` lines on stderr.                                                          |
-| `run [--env F] -- <cmd> [args]`                        | Runs `check`, then runs the application with the values in its environment.                                                                                                                                                                                                                                                                   |
-| `install` / `update [--check] [-y]` / `uninstall [-y]` | Installs, updates, or removes the binary.                                                                                                                                                                                                                                                                                                     |
+| Command                                                | What it does                                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `init <app> [--owner user[:group]]`                    | Creates the key if missing (never replaces one). Creates `.env` from the template, or takes over an old plain `.env` by encrypting its values.                                                                                                                                                                                 |
+| `setup`                                                | Brings `.env` in line with the template, encrypts plain values in secret variables, then shows every variable on one screen, the empty ones to fill and the filled ones to keep or replace (secret variables show `*`). Without a terminal: reads `KEY=value` lines from stdin.                                                |
+| `set <KEY> [--stdin \| --file F]`                      | Replaces one value. Values are never taken from arguments.                                                                                                                                                                                                                                                                     |
+| `list`                                                 | Shows variable names and their status; values are never shown. In a terminal: a colored table with `STORED` (`ENCRYPTED`/`PLAIN`) and `TYPED` (`SECRET`/`VISIBLE`) columns, plus a summary of the variables that still need `setup`. When piped to a script (`\| grep`, `> file`): the plain `KEY  STATUS` columns, as before. |
+| `check`                                                | Verifies that every required variable is filled, every `enc:` can be decrypted, the key matches, and the key file's permissions are safe. In a terminal: a table of results per variable and for the key file. Problems are always printed as `✗ ...` and `Fix: ...` lines on stderr.                                          |
+| `run [--env F] -- <cmd> [args]`                        | Runs `check`, then runs the application with the values in its environment.                                                                                                                                                                                                                                                    |
+| `install` / `update [--check] [-y]` / `uninstall [-y]` | Installs, updates, or removes the binary.                                                                                                                                                                                                                                                                                      |
 
 Global options: `--env` (default `./.env`), `--template` (default `./.env.example`), and `--key-file`.
 
@@ -230,13 +254,13 @@ restart the application.
 
 ## Reading values in the application
 
-| Application              | How to read                                                         |
-| ------------------------ | ------------------------------------------------------------------- |
-| Express / Node.js        | `process.env.REDIS_HOST`                                            |
-| SvelteKit (adapter-node) | `import { env } from '$env/dynamic/private'` → `env.REDIS_HOST`     |
+| Application              | How to read                                                        |
+| ------------------------ | ------------------------------------------------------------------ |
+| Express / Node.js        | `process.env.REDIS_HOST`                                           |
+| SvelteKit (adapter-node) | `import { env } from '$env/dynamic/private'` → `env.REDIS_HOST`    |
 | Spring Boot              | `spring.data.redis.host=${REDIS_HOST}` in `application.properties` |
-| Go                       | `os.Getenv("REDIS_HOST")`                                           |
-| Rust                     | `std::env::var("REDIS_HOST")`                                       |
+| Go                       | `os.Getenv("REDIS_HOST")`                                          |
+| Rust                     | `std::env::var("REDIS_HOST")`                                      |
 
 Example commands: `sultrakey run -- node dist/main.js`, `sultrakey run -- node build` (SvelteKit),
 `sultrakey run -- java -jar app.jar`, `sultrakey run -- mvnw.cmd spring-boot:run`, and
